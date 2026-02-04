@@ -81,7 +81,7 @@ The project is distributed under the **MIT License**. For more details, see the 
 
 **Инструмент для текстового перевода миссий и кампаний игры DCS World**
 
-![Интерфейс DCS Translation Tool](https://raw.githubusercontent.com/Hokum-A/dcs-translation-tool/main/assets/screen.jpg)
+![Интерфейс DCS Translation Tool](https://raw.githubusercontent.com/Hokum-A/dcs-translation-tool/main/assets/screen2.jpg)
 *Главное окно программы для перевода*
 
 Поддерживает работу с файлами `.lua` (dictionary) и архивами миссий `.miz`. Интерфейс полностью переведён на русский и английский языки.
