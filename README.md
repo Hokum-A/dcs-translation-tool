@@ -2,10 +2,10 @@
 
 **A tool for text translation of missions and campaigns in DCS World**
 
-![DCS Translation Tool Interface](https://raw.githubusercontent.com/Hokum-A/dcs-translation-tool/main/assets/screen.jpg)
+![DCS Translation Tool Interface](https://github.com/Hokum-A/dcs-translation-tool/blob/main/assets/screen3.jpg)
 *Main interface of the translation tool*
 
-Supports `.lua` (dictionary) files and mission `.miz` archives. The interface is fully translated into English and Russian.
+Supports `.lua` (dictionary), `.cmp` (campaign) files and mission `.miz` archives. The interface is fully translated into English and Russian.
 
 > The program was created using generative AI and is being refined manually. Any help and constructive criticism is welcome!
 
@@ -81,10 +81,10 @@ The project is distributed under the **MIT License**. For more details, see the 
 
 **Инструмент для текстового перевода миссий и кампаний игры DCS World**
 
-![Интерфейс DCS Translation Tool](https://raw.githubusercontent.com/Hokum-A/dcs-translation-tool/main/assets/screen2.jpg)
+![Интерфейс DCS Translation Tool](https://github.com/Hokum-A/dcs-translation-tool/blob/main/assets/screen3.jpg)
 *Главное окно программы для перевода*
 
-Поддерживает работу с файлами `.lua` (dictionary) и архивами миссий `.miz`. Интерфейс полностью переведён на русский и английский языки.
+Поддерживает работу с файлами `.lua` (dictionary), `.cmp` (файлы кампаний) и архивами миссий `.miz`. Интерфейс полностью переведён на русский и английский языки.
 
 > Программа создана с использованием генеративного ИИ и дорабатывается вручную. Любая помощь и конструктивная критика приветствуется!
 
