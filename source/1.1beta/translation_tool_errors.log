@@ -1,0 +1,738 @@
+
+============================================================
+ВРЕМЯ: 2026-02-21 18:56:13
+ТИП ОШИБКИ: MIZ_READ
+СООБЩЕНИЕ: Ошибка работы с файлом миссии: 'charmap' codec can't encode character '\u2705' in position 0: character maps to <undefined>
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:29:42
+ТИП ОШИБКИ: MIZ_READ
+СООБЩЕНИЕ: Ошибка работы с файлом миссии: 'charmap' codec can't encode character '\u2705' in position 0: character maps to <undefined>
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:03
+ТИП ОШИБКИ: SEARCH_ERROR
+СООБЩЕНИЕ: Error in highlight match: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:04
+ТИП ОШИБКИ: SEARCH_ERROR
+СООБЩЕНИЕ: Error in highlight match: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:06
+ТИП ОШИБКИ: SEARCH_ERROR
+СООБЩЕНИЕ: Error in highlight match: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:06
+ТИП ОШИБКИ: SEARCH_ERROR
+СООБЩЕНИЕ: Error in highlight match: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:06
+ТИП ОШИБКИ: AUDIO_HIGHLIGHT
+СООБЩЕНИЕ: Error highlighting audio: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:06
+ТИП ОШИБКИ: SEARCH_ERROR
+СООБЩЕНИЕ: Error in highlight match: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:06
+ТИП ОШИБКИ: AUDIO_HIGHLIGHT
+СООБЩЕНИЕ: Error highlighting audio: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:07
+ТИП ОШИБКИ: SEARCH_ERROR
+СООБЩЕНИЕ: Error in highlight match: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:07
+ТИП ОШИБКИ: AUDIO_HIGHLIGHT
+СООБЩЕНИЕ: Error highlighting audio: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:07
+ТИП ОШИБКИ: SEARCH_ERROR
+СООБЩЕНИЕ: Error in highlight match: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:07
+ТИП ОШИБКИ: SEARCH_ERROR
+СООБЩЕНИЕ: Error in highlight match: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:07
+ТИП ОШИБКИ: AUDIO_HIGHLIGHT
+СООБЩЕНИЕ: Error highlighting audio: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:08
+ТИП ОШИБКИ: SEARCH_ERROR
+СООБЩЕНИЕ: Error in highlight match: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:08
+ТИП ОШИБКИ: AUDIO_HIGHLIGHT
+СООБЩЕНИЕ: Error highlighting audio: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:08
+ТИП ОШИБКИ: SEARCH_ERROR
+СООБЩЕНИЕ: Error in highlight match: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:08
+ТИП ОШИБКИ: AUDIO_HIGHLIGHT
+СООБЩЕНИЕ: Error highlighting audio: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:08
+ТИП ОШИБКИ: SEARCH_ERROR
+СООБЩЕНИЕ: Error in highlight match: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:08
+ТИП ОШИБКИ: AUDIO_HIGHLIGHT
+СООБЩЕНИЕ: Error highlighting audio: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:08
+ТИП ОШИБКИ: SEARCH_ERROR
+СООБЩЕНИЕ: Error in highlight match: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:10
+ТИП ОШИБКИ: SEARCH_ERROR
+СООБЩЕНИЕ: Error in highlight match: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:10
+ТИП ОШИБКИ: AUDIO_HIGHLIGHT
+СООБЩЕНИЕ: Error highlighting audio: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:10
+ТИП ОШИБКИ: SEARCH_ERROR
+СООБЩЕНИЕ: Error in highlight match: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:10
+ТИП ОШИБКИ: AUDIO_HIGHLIGHT
+СООБЩЕНИЕ: Error highlighting audio: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:10
+ТИП ОШИБКИ: SEARCH_ERROR
+СООБЩЕНИЕ: Error in highlight match: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:10
+ТИП ОШИБКИ: SEARCH_ERROR
+СООБЩЕНИЕ: Error in highlight match: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:10
+ТИП ОШИБКИ: AUDIO_HIGHLIGHT
+СООБЩЕНИЕ: Error highlighting audio: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:11
+ТИП ОШИБКИ: SEARCH_ERROR
+СООБЩЕНИЕ: Error in highlight match: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:11
+ТИП ОШИБКИ: SEARCH_ERROR
+СООБЩЕНИЕ: Error in highlight match: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:11
+ТИП ОШИБКИ: AUDIO_HIGHLIGHT
+СООБЩЕНИЕ: Error highlighting audio: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:11
+ТИП ОШИБКИ: SEARCH_ERROR
+СООБЩЕНИЕ: Error in highlight match: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:11
+ТИП ОШИБКИ: AUDIO_HIGHLIGHT
+СООБЩЕНИЕ: Error highlighting audio: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:11
+ТИП ОШИБКИ: SEARCH_ERROR
+СООБЩЕНИЕ: Error in highlight match: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:11
+ТИП ОШИБКИ: AUDIO_HIGHLIGHT
+СООБЩЕНИЕ: Error highlighting audio: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:11
+ТИП ОШИБКИ: SEARCH_ERROR
+СООБЩЕНИЕ: Error in highlight match: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:26
+ТИП ОШИБКИ: SEARCH_ERROR
+СООБЩЕНИЕ: Error in highlight match: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:26
+ТИП ОШИБКИ: AUDIO_HIGHLIGHT
+СООБЩЕНИЕ: Error highlighting audio: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:26
+ТИП ОШИБКИ: SEARCH_ERROR
+СООБЩЕНИЕ: Error in highlight match: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:26
+ТИП ОШИБКИ: AUDIO_HIGHLIGHT
+СООБЩЕНИЕ: Error highlighting audio: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:27
+ТИП ОШИБКИ: SEARCH_ERROR
+СООБЩЕНИЕ: Error in highlight match: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:27
+ТИП ОШИБКИ: AUDIO_HIGHLIGHT
+СООБЩЕНИЕ: Error highlighting audio: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:27
+ТИП ОШИБКИ: SEARCH_ERROR
+СООБЩЕНИЕ: Error in highlight match: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:27
+ТИП ОШИБКИ: SEARCH_ERROR
+СООБЩЕНИЕ: Error in highlight match: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:27
+ТИП ОШИБКИ: AUDIO_HIGHLIGHT
+СООБЩЕНИЕ: Error highlighting audio: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:28
+ТИП ОШИБКИ: SEARCH_ERROR
+СООБЩЕНИЕ: Error in highlight match: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:28
+ТИП ОШИБКИ: AUDIO_HIGHLIGHT
+СООБЩЕНИЕ: Error highlighting audio: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:28
+ТИП ОШИБКИ: SEARCH_ERROR
+СООБЩЕНИЕ: Error in highlight match: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:28
+ТИП ОШИБКИ: SEARCH_ERROR
+СООБЩЕНИЕ: Error in highlight match: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:28
+ТИП ОШИБКИ: AUDIO_HIGHLIGHT
+СООБЩЕНИЕ: Error highlighting audio: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:29
+ТИП ОШИБКИ: SEARCH_ERROR
+СООБЩЕНИЕ: Error in highlight match: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:29
+ТИП ОШИБКИ: AUDIO_HIGHLIGHT
+СООБЩЕНИЕ: Error highlighting audio: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:29
+ТИП ОШИБКИ: SEARCH_ERROR
+СООБЩЕНИЕ: Error in highlight match: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:29
+ТИП ОШИБКИ: AUDIO_HIGHLIGHT
+СООБЩЕНИЕ: Error highlighting audio: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:29
+ТИП ОШИБКИ: SEARCH_ERROR
+СООБЩЕНИЕ: Error in highlight match: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:29
+ТИП ОШИБКИ: SEARCH_ERROR
+СООБЩЕНИЕ: Error in highlight match: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:30
+ТИП ОШИБКИ: SEARCH_ERROR
+СООБЩЕНИЕ: Error in highlight match: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:30
+ТИП ОШИБКИ: AUDIO_HIGHLIGHT
+СООБЩЕНИЕ: Error highlighting audio: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:30
+ТИП ОШИБКИ: SEARCH_ERROR
+СООБЩЕНИЕ: Error in highlight match: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:30
+ТИП ОШИБКИ: AUDIO_HIGHLIGHT
+СООБЩЕНИЕ: Error highlighting audio: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:30
+ТИП ОШИБКИ: SEARCH_ERROR
+СООБЩЕНИЕ: Error in highlight match: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:30
+ТИП ОШИБКИ: AUDIO_HIGHLIGHT
+СООБЩЕНИЕ: Error highlighting audio: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:30
+ТИП ОШИБКИ: SEARCH_ERROR
+СООБЩЕНИЕ: Error in highlight match: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:31
+ТИП ОШИБКИ: SEARCH_ERROR
+СООБЩЕНИЕ: Error in highlight match: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:31
+ТИП ОШИБКИ: AUDIO_HIGHLIGHT
+СООБЩЕНИЕ: Error highlighting audio: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:31
+ТИП ОШИБКИ: SEARCH_ERROR
+СООБЩЕНИЕ: Error in highlight match: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:31
+ТИП ОШИБКИ: AUDIO_HIGHLIGHT
+СООБЩЕНИЕ: Error highlighting audio: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:31
+ТИП ОШИБКИ: SEARCH_ERROR
+СООБЩЕНИЕ: Error in highlight match: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:31
+ТИП ОШИБКИ: AUDIO_HIGHLIGHT
+СООБЩЕНИЕ: Error highlighting audio: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:31
+ТИП ОШИБКИ: SEARCH_ERROR
+СООБЩЕНИЕ: Error in highlight match: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:31
+ТИП ОШИБКИ: AUDIO_HIGHLIGHT
+СООБЩЕНИЕ: Error highlighting audio: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:31
+ТИП ОШИБКИ: SEARCH_ERROR
+СООБЩЕНИЕ: Error in highlight match: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:32
+ТИП ОШИБКИ: SEARCH_ERROR
+СООБЩЕНИЕ: Error in highlight match: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:32
+ТИП ОШИБКИ: AUDIO_HIGHLIGHT
+СООБЩЕНИЕ: Error highlighting audio: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:32
+ТИП ОШИБКИ: SEARCH_ERROR
+СООБЩЕНИЕ: Error in highlight match: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:32
+ТИП ОШИБКИ: AUDIO_HIGHLIGHT
+СООБЩЕНИЕ: Error highlighting audio: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:32
+ТИП ОШИБКИ: SEARCH_ERROR
+СООБЩЕНИЕ: Error in highlight match: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:33
+ТИП ОШИБКИ: SEARCH_ERROR
+СООБЩЕНИЕ: Error in highlight match: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:33
+ТИП ОШИБКИ: AUDIO_HIGHLIGHT
+СООБЩЕНИЕ: Error highlighting audio: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:33
+ТИП ОШИБКИ: SEARCH_ERROR
+СООБЩЕНИЕ: Error in highlight match: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:33
+ТИП ОШИБКИ: SEARCH_ERROR
+СООБЩЕНИЕ: Error in highlight match: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:33
+ТИП ОШИБКИ: AUDIO_HIGHLIGHT
+СООБЩЕНИЕ: Error highlighting audio: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:33
+ТИП ОШИБКИ: SEARCH_ERROR
+СООБЩЕНИЕ: Error in highlight match: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:33
+ТИП ОШИБКИ: AUDIO_HIGHLIGHT
+СООБЩЕНИЕ: Error highlighting audio: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:34
+ТИП ОШИБКИ: SEARCH_ERROR
+СООБЩЕНИЕ: Error in highlight match: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:34
+ТИП ОШИБКИ: AUDIO_HIGHLIGHT
+СООБЩЕНИЕ: Error highlighting audio: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:37:34
+ТИП ОШИБКИ: SEARCH_ERROR
+СООБЩЕНИЕ: Error in highlight match: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:43:26
+ТИП ОШИБКИ: SEARCH_ERROR
+СООБЩЕНИЕ: Error in highlight match: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:43:27
+ТИП ОШИБКИ: SEARCH_ERROR
+СООБЩЕНИЕ: Error in highlight match: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:43:29
+ТИП ОШИБКИ: SEARCH_ERROR
+СООБЩЕНИЕ: Error in highlight match: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:43:30
+ТИП ОШИБКИ: SEARCH_ERROR
+СООБЩЕНИЕ: Error in highlight match: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:43:30
+ТИП ОШИБКИ: SEARCH_ERROR
+СООБЩЕНИЕ: Error in highlight match: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:43:30
+ТИП ОШИБКИ: SEARCH_ERROR
+СООБЩЕНИЕ: Error in highlight match: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:43:30
+ТИП ОШИБКИ: SEARCH_ERROR
+СООБЩЕНИЕ: Error in highlight match: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:43:31
+ТИП ОШИБКИ: SEARCH_ERROR
+СООБЩЕНИЕ: Error in highlight match: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:43:31
+ТИП ОШИБКИ: SEARCH_ERROR
+СООБЩЕНИЕ: Error in highlight match: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:43:31
+ТИП ОШИБКИ: SEARCH_ERROR
+СООБЩЕНИЕ: Error in highlight match: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:43:35
+ТИП ОШИБКИ: SEARCH_ERROR
+СООБЩЕНИЕ: Error in highlight match: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:43:35
+ТИП ОШИБКИ: AUDIO_HIGHLIGHT
+СООБЩЕНИЕ: Error highlighting audio: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:43:35
+ТИП ОШИБКИ: SEARCH_ERROR
+СООБЩЕНИЕ: Error in highlight match: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:43:37
+ТИП ОШИБКИ: SEARCH_ERROR
+СООБЩЕНИЕ: Error in highlight match: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:43:37
+ТИП ОШИБКИ: AUDIO_HIGHLIGHT
+СООБЩЕНИЕ: Error highlighting audio: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:43:37
+ТИП ОШИБКИ: SEARCH_ERROR
+СООБЩЕНИЕ: Error in highlight match: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:43:37
+ТИП ОШИБКИ: AUDIO_HIGHLIGHT
+СООБЩЕНИЕ: Error highlighting audio: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:43:38
+ТИП ОШИБКИ: SEARCH_ERROR
+СООБЩЕНИЕ: Error in highlight match: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:43:38
+ТИП ОШИБКИ: AUDIO_HIGHLIGHT
+СООБЩЕНИЕ: Error highlighting audio: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:43:38
+ТИП ОШИБКИ: SEARCH_ERROR
+СООБЩЕНИЕ: Error in highlight match: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:43:38
+ТИП ОШИБКИ: AUDIO_HIGHLIGHT
+СООБЩЕНИЕ: Error highlighting audio: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:43:39
+ТИП ОШИБКИ: SEARCH_ERROR
+СООБЩЕНИЕ: Error in highlight match: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:43:39
+ТИП ОШИБКИ: AUDIO_HIGHLIGHT
+СООБЩЕНИЕ: Error highlighting audio: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:43:39
+ТИП ОШИБКИ: SEARCH_ERROR
+СООБЩЕНИЕ: Error in highlight match: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:43:39
+ТИП ОШИБКИ: AUDIO_HIGHLIGHT
+СООБЩЕНИЕ: Error highlighting audio: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:43:39
+ТИП ОШИБКИ: SEARCH_ERROR
+СООБЩЕНИЕ: Error in highlight match: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:43:39
+ТИП ОШИБКИ: AUDIO_HIGHLIGHT
+СООБЩЕНИЕ: Error highlighting audio: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:43:39
+ТИП ОШИБКИ: SEARCH_ERROR
+СООБЩЕНИЕ: Error in highlight match: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:43:39
+ТИП ОШИБКИ: AUDIO_HIGHLIGHT
+СООБЩЕНИЕ: Error highlighting audio: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:43:40
+ТИП ОШИБКИ: SEARCH_ERROR
+СООБЩЕНИЕ: Error in highlight match: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:43:40
+ТИП ОШИБКИ: AUDIO_HIGHLIGHT
+СООБЩЕНИЕ: Error highlighting audio: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:43:40
+ТИП ОШИБКИ: SEARCH_ERROR
+СООБЩЕНИЕ: Error in highlight match: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:43:40
+ТИП ОШИБКИ: AUDIO_HIGHLIGHT
+СООБЩЕНИЕ: Error highlighting audio: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:43:40
+ТИП ОШИБКИ: SEARCH_ERROR
+СООБЩЕНИЕ: Error in highlight match: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-21 19:43:40
+ТИП ОШИБКИ: AUDIO_HIGHLIGHT
+СООБЩЕНИЕ: Error highlighting audio: ensureWidgetVisible(self, childWidget: Optional[QWidget], xMargin: int = 50, yMargin: int = 50): argument 1 has unexpected type 'tuple'
+============================================================
+
+============================================================
+ВРЕМЯ: 2026-02-22 01:14:12
+ТИП ОШИБКИ: MIZ_LOCALE_SWITCH
+СООБЩЕНИЕ: Error switching locale: 'is_empty'
+============================================================

@@ -1,0 +1,52 @@
+{
+  "version": "1.04",
+  "language": "ru",
+  "filter_action_text": true,
+  "filter_action_radio": true,
+  "filter_description": true,
+  "filter_subtitle": true,
+  "filter_sortie": true,
+  "filter_name": true,
+  "filter_empty": false,
+  "filter_empty_keys": true,
+  "highlight_empty_fields": true,
+  "highlight_empty_color": "#555555",
+  "debug_logs_enabled": true,
+  "create_backup": false,
+  "show_all_keys": false,
+  "last_open_folder": "C:/Users/Andrei/Desktop/test/test2",
+  "last_save_folder": "C:/Users/Andrei/Desktop/test",
+  "last_audio_folder": "C:/Users/Andrei/Desktop/test/test2",
+  "window_width": 1785,
+  "window_height": 1322,
+  "add_context": true,
+  "ai_context_1": "Ты переводчик миссий DCS World (авиасимулятор).\n\nЗадача:\nПереведи текст на РУССКИЙ ЯЗЫК максимально точно, без художественных вольностей.\n\nОБЯЗАТЕЛЬНО:\n- Сохраняй количество строк 1 в 1 даже если это не имеет смысла, даже если кажется, что это одно предложение, не объединяй строки\n- НИЧЕГО не добавляй и не удаляй\n- НЕ объединяй строки\n- НЕ переводить технические элементы, имена файлов, ключи, идентификаторы, переменные\n- НЕ переводить позывные, если они выглядят как callsign (Brutus, Colt 1-1, Ford 2)\n- НЕ переводить значения времени, координаты, высоты, частоты\n- Форматирование и количество строк должно остаться исходным\n\nПЕРЕВОДИТЬ:\n- Радиообмен\n- Инструкции игроку\n- Сообщения от инструктора\n- Брифинги и подсказки\n\nКонтекст:\nТекст используется в миссии DCS World.\nТематика — авиация и военные полёты.\n\nВот текст для перевода:",
+  "ai_context_2": "당신은 DCS World 미션 텍스트(전투 비행 시뮬레이터) 번역가입니다.\n\n작업:\n다음 텍스트를 창의적인 수정 없이 최대한 정확하게 한국어로 번역하십시오.\n\n필수 사항:\n- 의미가 통하지 않거나 한 문장처럼 보이더라도 줄 수를 정확히(1:1) 유지하십시오. 줄을 합치지 마십시오.\n- 아무것도 추가하거나 삭제하지 마십시오.\n- 줄을 합치지 마십시오.\n- 기술 요소, 파일 이름, 키, 식별자, 변수는 번역하지 마십시오.\n- 콜사인이 실제 콜사인처럼 보일 경우(Brutus, Colt 1-1, Ford 2 등) 번역하지 마십시오.\n- 시간 값, 좌표, 고도, 주파수는 번역하지 마십시오.\n- 서식과 줄 수는 원본과 완전히 동일하게 유지되어야 합니다.\n\n번역 대상:\n- 무선 통신\n- 플레이어 지침\n- 교관 조종사의 메시지\n- 브리핑 및 힌트\n\n컨텍스트:\n이 텍스트는 DCS World 미션에서 사용됩니다.\n테마: 항공 및 군사 비행 작전.\n\n번역할 텍스트는 다음과 같습니다:",
+  "ai_context_lang_1": "RU",
+  "sync_scroll": true,
+  "pane_splitter_sizes": [
+    318,
+    318
+  ],
+  "main_vertical_splitter_sizes": [
+    146,
+    330
+  ],
+  "audio_player_pos": null,
+  "files_window_pos": null,
+  "audio_volume": 50,
+  "custom_filters": [
+    {
+      "enabled": false,
+      "text": ""
+    },
+    {
+      "enabled": false,
+      "text": ""
+    },
+    {
+      "enabled": false,
+      "text": ""
+    }
+  ]
+}
