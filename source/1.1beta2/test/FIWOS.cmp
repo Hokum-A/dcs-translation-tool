@@ -1,0 +1,341 @@
+campaign = 
+{
+	["description"] = "Strap on the mighty F-16C Viper and enter the world of the Wild Weasels!  First In - Weasels Over Syria will immerse you in this legendary mission as you fly head on into enemy air defenses.\
+\
+Set during the events of Operation Cerberus North, FIWOS will place you in the cockpit of Captain Dan ‘Forrest’ Wilson, a Wild Weasel pilot with the 79th Fighter Squadron.  During this incredibly detailed, exciting and immersive campaign you will engage in a wide range of Weasel missions as the Joint Syrian Task Force fights for dominance over the highly contested Syrian skies.  YGBSM!\
+",
+	["description_KO"] = "KO описание 1\
+KO описание 2\
+",
+
+	["name_CN"] = "CN имя",
+	["pictureFailed_CS"] = "Fail shot 3.jpg",
+	["fullPath"] = "C:\\Users\\Andrei\\Saved Games\\DCS.openbeta\\Missions\\Campaigns\\MultiLang\\F-16C First in Weasels Over Syria\\FIWOS.cmp",
+	["pictureSuccess_CS"] = "Win 2.jpg",
+	["picture_EN"] = "FIWOS 9C.jpg",
+	["startStage"] = 1,
+	["picture"] = "FIWOS 9C.jpg",
+	["description_EN"] = "Strap on the mighty F-16C Viper and enter the world of the Wild Weasels!  First In - Weasels Over Syria will immerse you in this legendary mission as you fly head on into enemy air defenses.\
+\
+Set during the events of Operation Cerberus North, FIWOS will place you in the cockpit of Captain Dan ‘Forrest’ Wilson, a Wild Weasel pilot with the 79th Fighter Squadron.  During this incredibly detailed, exciting and immersive campaign you will engage in a wide range of Weasel missions as the Joint Syrian Task Force fights for dominance over the highly contested Syrian skies.  YGBSM!\
+",
+	["pictureSuccess_KO"] = "Win 2.jpg",
+	["name_FR"] = "FR имя",
+	["picture_KO"] = "FIWOS 9C.jpg",
+	["version"] = 1,
+	["name_KO"] = "KO имя",
+	["pictureFailed_KO"] = "Fail shot 3.jpg",
+	["pictureFailed_EN"] = "Fail shot 3.jpg",
+	["description_CS"] = "CS описание 1\
+CS описание 2\
+",
+	["picture_DE"] = "FIWOS 9C.jpg",
+	["name_DE"] = "DE имя",
+	["description_ES"] = "ES описание 1\
+ES описание 2\
+",
+	["description_JP"] = "JP описание 1\
+JP описание 2\
+",
+	["pictureFailed_DE"] = "Fail shot 3.jpg",
+	["name_JP"] = "JP имя",
+	["pictureFailed_CN"] = "Fail shot 3.jpg",
+	["pictureFailed_FR"] = "Fail shot 3.jpg",
+	["name_CS"] = "CS имя",
+	["picture_FR"] = "FIWOS 9C.jpg",
+	["description_DE"] = "DE описание 1\
+DE описание 2\
+",
+	["description_FR"] = "FR описание 1\
+FR описание 2\
+",
+	["pictureSuccess_JP"] = "Win 2.jpg",
+	["picture_CS"] = "FIWOS 9C.jpg",
+	["pictureFailed_ES"] = "Fail shot 3.jpg",
+	["picture_ES"] = "FIWOS 9C.jpg",
+	["picture_JP"] = "FIWOS 9C.jpg",
+	["pictureSuccess_CN"] = "Win 2.jpg",
+	["directory"] = "C:\\Users\\Andrei\\Saved Games\\DCS.openbeta\\Missions\\Campaigns\\MultiLang\\F-16C First in Weasels Over Syria\\",
+	["pictureSuccess_DE"] = "Win 2.jpg",
+	["picture_RU"] = "FIWOS 9C.jpg",
+	["name_ES"] = "ES имя",
+	["pictureSuccess_ES"] = "Win 2.jpg",
+	["name_EN"] = "First In - Weasels Over Syria",
+	["necessaryUnits"] = 
+	{
+		["F-16C_50"] = "F-16C_50",
+	}, -- end of ["necessaryUnits"]
+	["pictureFailed"] = "Fail shot 3.jpg",
+	["description_CN"] = "CN описание 1\
+CN описание 2\
+",
+	["pictureSuccess"] = "Win 2.jpg",
+	["pictureFailed_JP"] = "Fail shot 3.jpg",
+	["picture_CN"] = "FIWOS 9C.jpg",
+	["name"] = "First In - Weasels Over Syria",
+	["pictureFailed_RU"] = "Fail shot 3.jpg",
+	["description_RU"] = "RU описание 1\
+RU описание 2\
+",
+
+
+
+
+
+	["pictureSuccess_FR"] = "Win 2.jpg",
+	["name_RU"] = "RU имя\
+имя 2",
+	["pictureSuccess_RU"] = "Win 2.jpg",
+	["pictureSuccess_EN"] = "Win 2.jpg",
+	["stages"] = 
+	{
+		[13] = 
+		{
+			["name"] = "Stage 13",
+			["missions"] = 
+			{
+				[1] = 
+				{
+					["description"] = "",
+					["interval"] = 
+					{
+						[1] = 0,
+						[2] = 100,
+					}, -- end of ["interval"]
+					["file"] = "FIWOS M12 FINAL.miz",
+					["fullpath"] = "C:\\Users\\Andrei\\Saved Games\\DCS.openbeta\\Missions\\Campaigns\\MultiLang\\F-16C First in Weasels Over Syria\\FIWOS M12 FINAL.miz",
+					["skipScore"] = 100,
+				}, -- end of [1]
+			}, -- end of ["missions"]
+		}, -- end of [13]
+		[7] = 
+		{
+			["name"] = "Stage 7",
+			["missions"] = 
+			{
+				[1] = 
+				{
+					["description"] = "",
+					["interval"] = 
+					{
+						[1] = 0,
+						[2] = 100,
+					}, -- end of ["interval"]
+					["file"] = "FIWOS M7 FINAL.miz",
+					["fullpath"] = "C:\\Users\\Andrei\\Saved Games\\DCS.openbeta\\Missions\\Campaigns\\MultiLang\\F-16C First in Weasels Over Syria\\FIWOS M7 FINAL.miz",
+					["skipScore"] = 100,
+				}, -- end of [1]
+			}, -- end of ["missions"]
+		}, -- end of [7]
+		[1] = 
+		{
+			["name"] = "Stage 1",
+			["missions"] = 
+			{
+				[1] = 
+				{
+					["description"] = "",
+					["interval"] = 
+					{
+						[1] = 0,
+						[2] = 100,
+					}, -- end of ["interval"]
+					["file"] = "FIWOS M1 FINAL.miz",
+					["fullpath"] = "C:\\Users\\Andrei\\Saved Games\\DCS.openbeta\\Missions\\Campaigns\\MultiLang\\F-16C First in Weasels Over Syria\\FIWOS M1 FINAL.miz",
+					["skipScore"] = 100,
+				}, -- end of [1]
+			}, -- end of ["missions"]
+		}, -- end of [1]
+		[2] = 
+		{
+			["name"] = "Stage 2",
+			["missions"] = 
+			{
+				[1] = 
+				{
+					["description"] = "",
+					["interval"] = 
+					{
+						[1] = 0,
+						[2] = 100,
+					}, -- end of ["interval"]
+					["file"] = "FIWOS M2 FINAL.miz",
+					["fullpath"] = "C:\\Users\\Andrei\\Saved Games\\DCS.openbeta\\Missions\\Campaigns\\MultiLang\\F-16C First in Weasels Over Syria\\FIWOS M2 FINAL.miz",
+					["skipScore"] = 100,
+				}, -- end of [1]
+			}, -- end of ["missions"]
+		}, -- end of [2]
+		[4] = 
+		{
+			["name"] = "Stage 4",
+			["missions"] = 
+			{
+				[1] = 
+				{
+					["description"] = "",
+					["interval"] = 
+					{
+						[1] = 0,
+						[2] = 100,
+					}, -- end of ["interval"]
+					["file"] = "FIWOS M4 FINAL.miz",
+					["fullpath"] = "C:\\Users\\Andrei\\Saved Games\\DCS.openbeta\\Missions\\Campaigns\\MultiLang\\F-16C First in Weasels Over Syria\\FIWOS M4 FINAL.miz",
+					["skipScore"] = 100,
+				}, -- end of [1]
+			}, -- end of ["missions"]
+		}, -- end of [4]
+		[8] = 
+		{
+			["name"] = "Stage 8",
+			["missions"] = 
+			{
+				[1] = 
+				{
+					["description"] = "",
+					["interval"] = 
+					{
+						[1] = 0,
+						[2] = 100,
+					}, -- end of ["interval"]
+					["file"] = "FIWOS M8 FINAL.miz",
+					["fullpath"] = "C:\\Users\\Andrei\\Saved Games\\DCS.openbeta\\Missions\\Campaigns\\MultiLang\\F-16C First in Weasels Over Syria\\FIWOS M8 FINAL.miz",
+					["skipScore"] = 100,
+				}, -- end of [1]
+			}, -- end of ["missions"]
+		}, -- end of [8]
+		[9] = 
+		{
+			["name"] = "Stage 9",
+			["missions"] = 
+			{
+				[1] = 
+				{
+					["description"] = "",
+					["interval"] = 
+					{
+						[1] = 0,
+						[2] = 100,
+					}, -- end of ["interval"]
+					["file"] = "FIWOS M9A FINAL.miz",
+					["fullpath"] = "C:\\Users\\Andrei\\Saved Games\\DCS.openbeta\\Missions\\Campaigns\\MultiLang\\F-16C First in Weasels Over Syria\\FIWOS M9A FINAL.miz",
+					["skipScore"] = 100,
+				}, -- end of [1]
+			}, -- end of ["missions"]
+		}, -- end of [9]
+		[5] = 
+		{
+			["name"] = "Stage 5",
+			["missions"] = 
+			{
+				[1] = 
+				{
+					["description"] = "",
+					["interval"] = 
+					{
+						[1] = 0,
+						[2] = 100,
+					}, -- end of ["interval"]
+					["file"] = "FIWOS M5 FINAL.miz",
+					["fullpath"] = "C:\\Users\\Andrei\\Saved Games\\DCS.openbeta\\Missions\\Campaigns\\MultiLang\\F-16C First in Weasels Over Syria\\FIWOS M5 FINAL.miz",
+					["skipScore"] = 100,
+				}, -- end of [1]
+			}, -- end of ["missions"]
+		}, -- end of [5]
+		[10] = 
+		{
+			["name"] = "Stage 10",
+			["missions"] = 
+			{
+				[1] = 
+				{
+					["description"] = "",
+					["interval"] = 
+					{
+						[1] = 0,
+						[2] = 100,
+					}, -- end of ["interval"]
+					["file"] = "FIWOS M9B FINAL.miz",
+					["fullpath"] = "C:\\Users\\Andrei\\Saved Games\\DCS.openbeta\\Missions\\Campaigns\\MultiLang\\F-16C First in Weasels Over Syria\\FIWOS M9B FINAL.miz",
+					["skipScore"] = 100,
+				}, -- end of [1]
+			}, -- end of ["missions"]
+		}, -- end of [10]
+		[3] = 
+		{
+			["name"] = "Stage 3",
+			["missions"] = 
+			{
+				[1] = 
+				{
+					["description"] = "",
+					["interval"] = 
+					{
+						[1] = 0,
+						[2] = 100,
+					}, -- end of ["interval"]
+					["file"] = "FIWOS M3 FINAL.miz",
+					["fullpath"] = "C:\\Users\\Andrei\\Saved Games\\DCS.openbeta\\Missions\\Campaigns\\MultiLang\\F-16C First in Weasels Over Syria\\FIWOS M3 FINAL.miz",
+					["skipScore"] = 100,
+				}, -- end of [1]
+			}, -- end of ["missions"]
+		}, -- end of [3]
+		[6] = 
+		{
+			["name"] = "Stage 6",
+			["missions"] = 
+			{
+				[1] = 
+				{
+					["description"] = "",
+					["interval"] = 
+					{
+						[1] = 0,
+						[2] = 100,
+					}, -- end of ["interval"]
+					["file"] = "FIWOS M6 FINAL.miz",
+					["fullpath"] = "C:\\Users\\Andrei\\Saved Games\\DCS.openbeta\\Missions\\Campaigns\\MultiLang\\F-16C First in Weasels Over Syria\\FIWOS M6 FINAL.miz",
+					["skipScore"] = 100,
+				}, -- end of [1]
+			}, -- end of ["missions"]
+		}, -- end of [6]
+		[12] = 
+		{
+			["name"] = "Stage 12",
+			["missions"] = 
+			{
+				[1] = 
+				{
+					["description"] = "",
+					["interval"] = 
+					{
+						[1] = 0,
+						[2] = 100,
+					}, -- end of ["interval"]
+					["file"] = "FIWOS M11 FINAL.miz",
+					["fullpath"] = "C:\\Users\\Andrei\\Saved Games\\DCS.openbeta\\Missions\\Campaigns\\MultiLang\\F-16C First in Weasels Over Syria\\FIWOS M11 FINAL.miz",
+					["skipScore"] = 100,
+				}, -- end of [1]
+			}, -- end of ["missions"]
+		}, -- end of [12]
+		[11] = 
+		{
+			["name"] = "Stage 11",
+			["missions"] = 
+			{
+				[1] = 
+				{
+					["description"] = "",
+					["interval"] = 
+					{
+						[1] = 0,
+						[2] = 100,
+					}, -- end of ["interval"]
+					["file"] = "FIWOS M10 FINAL.miz",
+					["fullpath"] = "C:\\Users\\Andrei\\Saved Games\\DCS.openbeta\\Missions\\Campaigns\\MultiLang\\F-16C First in Weasels Over Syria\\FIWOS M10 FINAL.miz",
+					["skipScore"] = 100,
+				}, -- end of [1]
+			}, -- end of ["missions"]
+		}, -- end of [11]
+	}, -- end of ["stages"]
+
+} -- end of campaign
