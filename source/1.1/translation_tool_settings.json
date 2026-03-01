@@ -1,0 +1,67 @@
+{
+  "version": "1.1",
+  "language": "ru",
+  "filter_action_text": true,
+  "filter_action_radio": true,
+  "filter_description": true,
+  "filter_subtitle": true,
+  "filter_sortie": true,
+  "filter_name": true,
+  "filter_empty": true,
+  "filter_empty_keys": true,
+  "highlight_empty_fields": true,
+  "highlight_empty_color": "#434343",
+  "debug_logs_enabled": false,
+  "create_backup": false,
+  "show_all_keys": false,
+  "last_open_folder": "",
+  "last_save_folder": "",
+  "last_audio_folder": "",
+  "window_width": 1400,
+  "window_height": 1200,
+  "add_context": true,
+  "ai_context_1": "Ты переводчик миссий DCS World (авиасимулятор).\n\nЗадача:\nПереведи текст на РУССКИЙ ЯЗЫК максимально точно, без художественных вольностей.\n\nОБЯЗАТЕЛЬНО:\n- Сохраняй количество строк 1 в 1 даже если это не имеет смысла, даже если кажется, что это одно предложение, не объединяй строки\n- НИЧЕГО не добавляй и не удаляй\n- НЕ объединяй строки\n- НЕ переводить технические элементы, имена файлов, ключи, идентификаторы, переменные\n- НЕ переводить позывные, если они выглядят как callsign (Brutus, Colt 1-1, Ford 2)\n- НЕ переводить значения времени, координаты, высоты, частоты\n- Форматирование и количество строк должно остаться исходным\n\nПЕРЕВОДИТЬ:\n- Радиообмен\n- Инструкции игроку\n- Сообщения от инструктора\n- Брифинги и подсказки\n\nКонтекст:\nТекст используется в миссии DCS World.\nТематика — авиация и военные полёты.\n\nВот текст для перевода:",
+  "ai_context_2": "",
+  "ai_context_lang_1": "RU",
+  "sync_scroll": false,
+  "pane_splitter_sizes": [
+    723,
+    655
+  ],
+  "main_vertical_splitter_sizes": [
+    270,
+    668
+  ],
+  "audio_player_pos": null,
+  "files_window_pos": null,
+  "audio_volume": 50,
+  "theme_bg_even": "#393939",
+  "theme_bg_odd": "#2f2f2f",
+  "theme_text_modified": "#ff6666",
+  "theme_text_saved": "#2ecc71",
+  "reference_locale": "DEFAULT",
+  "skip_locale_dialog": false,
+  "default_open_locale": "DEFAULT",
+  "multi_window_enabled": false,
+  "preview_font_family": "Arial",
+  "preview_font_size": 11,
+  "search_scope_original": true,
+  "search_scope_reference": true,
+  "search_scope_editor": true,
+  "search_scope_audio": true,
+  "recent_files": [],
+  "custom_filters": [
+    {
+      "enabled": false,
+      "text": ""
+    },
+    {
+      "enabled": false,
+      "text": ""
+    },
+    {
+      "enabled": false,
+      "text": ""
+    }
+  ]
+}
