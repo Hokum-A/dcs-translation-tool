@@ -1,0 +1,13500 @@
+# -*- coding: utf-8 -*-
+import sys
+import os
+# Подавление предупреждений libpng: iCCP: known incorrect sRGB profile
+os.environ["QT_LOGGING_RULES"] = "qt.gui.icc=false"
+import re
+import traceback
+import json
+import time
+import logging
+import zipfile
+import shutil
+import copy
+import pygame
+from datetime import datetime
+
+"""
+=== ОСНОВНАЯ ИНФОРМАЦИЯ ===
+• Программа для перевода файлов dictionary DCS World
+• Версия: 1.0 (добавлена поддержка .miz файлов)
+• Автор: разработано с помощью ChatGPT
+• Лицензия: открытый код для модификации
+
+1. ФИЛЬТРАЦИЯ: 4 стандартных ключа (ActionText, ActionRadioText, description, subtitle) 
+   + 3 пользовательских фильтры (чекбокс + поле ввода)
+   
+2. Важный момент - синтаксис: 
+    Правило 1: слеш-кавычка (\") так игра записывает в файл dictionary кавычки (пример - the \"Objective\" part в коде означает the "Objective" part в игре)
+    Правило 2: Если строка закончится на слеш-кавычка-запятая(\",) это вызовет зависание игры при чтении файла, поэтому игра делает перенос кавычки-запятой на другую строку (строка1:текст(слеш) строка2:(кавычка-запятая))
+     Правило 3: Строка не может заканчиваться на слеш-пробел (\\ ) вызывает зависание игры
+    Правило 4: слеш в тексте в игре обозначается как два слеша подряд в коде(\\)
+    Правило 5(самое главное!!): Структура файла с переносом строк после парсинга в файл должна остаться как в оригинале, это аксиома. Если в исходном коде была многострочная строка она обязательно должна остаться такой в коде после сохранения!!!
+   
+3. СОХРАНЕНИЕ НАСТРОЕК:
+   • Файл: translation_tool_settings.json
+   • Сохраняет все фильтры между запусками
+   • Автоматическая загрузка/сохраниение
+   
+4. ИНТЕРФЕЙС v1.3:
+   • Тёмная тема интерфейса (фон, панели, группы, текстовые окна)
+   • Toggle-переключатели вместо стандартных чекбоксов
+   • Hover-эффекты для всех кнопок
+   • Оранжевые акцентные элементы синхронизированы
+   • Уменьшенные toggle-переключатели с правильной анимации
+
+5. ПОДДЕРЖКА .MIZ ФАЙЛОВ v1.02:
+   • Открытие .miz архивов и автоматическое извлечение dictionary
+   • Безопасное сохранение обратно в архив без изменения структуры
+   • 3 варианта сохранения: перезапись, сохранение как, сохранить .txt отдельно
+   • Предложение о создании резервных копий
+   • Тёмная тема с оранжевой рамкой для всех всплывающих окон
+
+=== СИСТЕМА МАРКЕРОВ [SECTION_NAME] ===
+Для добавления/изменения кода используй маркеры:
+• [IMPORTS] - импорты библиотеки
+• [VERSION_INFO] - информация о версиях
+• [MAIN_CLASS] - основной класс TranslationApp
+• [UI_SETUP] - настройка интерфейса
+• [SETTINGS_METHODS] - работа с настройками
+• [FILE_PARSING] - парсинг файлов
+• [FILTER_METHODS] - фильтрация строк
+• [DISPLAY_METHODS] - обновление отображения
+• [TEXT_PROCESSING] - unescape_string(), escape_string()
+• [CLIPBOARD_METHODS] - работа с буфером обмена
+• [PREVIEW_METHODS] - предварительный просмотр
+• [SAVE_METHODS] - сохранение файлов
+• [HELPER_METHODS] - вспомогательные функции
+• [EVENT_HANDLERS] - обработчики событий
+• [MAIN_FUNCTION] - функция main()
+
+=== ИСТОРИЯ ВЕРСИЙ ===
+
+v1.0 - Добавлена поддержка .miz файлов миссий DCS, исправлена замена файлов в архивах
+v1.02 - Выбор папки при перезаписи, исправление LRM, динамическая версия
+
+=== ВАЖНЫЕ ПРИНЦИПЫ ===
+• Обратная совместимость: не ломать существующие функции
+• Слеши: сохранять как есть, не дублировать
+• Настройки: всегда сохранять/загружать корректно
+• Интерфейс: не менять расположение ключевых элементов без команд разработчика
+• .miz архивы: не изменять структуру сжатия, только заменять dictionary
+================================================================================
+"""
+
+# [IMPORTS]
+import re
+import sys
+import json
+import os
+import zipfile
+import shutil
+
+def resource_path(relative_path):
+    """ Получает абсолютный путь к ресурсу, работает в dev и в PyInstaller """
+    try:
+        # PyInstaller создает временную папку и сохраняет путь в _MEIPASS
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+
+    return os.path.join(base_path, relative_path)
+from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
+                             QHBoxLayout, QTextEdit, QPushButton, QFileDialog,
+                             QLabel, QMessageBox, QSplitter, QGroupBox, QMenu,
+                             QScrollArea, QFrame, QPlainTextEdit, QLineEdit,
+                             QSizePolicy, QDialog, QToolTip, QGridLayout, QComboBox, QProgressBar, QTextBrowser, QShortcut, QToolButton)
+
+# QScrollBar будет импортирован из widgets
+
+# Импорты для локализации
+from localization import get_translation
+from PyQt5.QtCore import Qt, pyqtSignal, QTimer, QPropertyAnimation, QRect, QEasingCurve, QPoint, pyqtProperty, QEvent, QUrl, QSize
+from PyQt5.QtGui import QFont, QTextCursor, QColor, QPalette, QPainter, QBrush, QPixmap, QPen, QMovie, QPainterPath, QRegion, QDesktopServices, QFontInfo, QFontMetrics, QIcon, QTextCharFormat, QTextFormat, QKeySequence
+from PyQt5.QtCore import QRectF
+from PyQt5.QtNetwork import QLocalServer, QLocalSocket
+
+# Импорты модулей
+from widgets import (LineNumberArea, NumberedTextEdit, CustomScrollBar,
+                    ToggleSwitch, LanguageToggleSwitch, CustomToolTip, ClickableLine, ClickableLabel, CustomImageButton, PreviewTextEdit, CustomSplitter, SearchPopup)
+from dialogs import (CustomDialog, MizFolderDialog,
+                    MizProgressDialog, AboutWindow, InstructionsWindow, AIContextWindow, DeleteConfirmDialog, AudioPlayerDialog, FilesWindow, BriefingWindow,
+                    TTSPreviewDialog, TTSLoadingDialog)
+from tts_engine import TTSEngine, TTSInitWorker, TTSAudioCache
+from error_logger import ErrorLogger
+from version import VersionInfo
+from parser import LuaDictionaryParser
+from parserCMP import CampaignParser
+from Context import AI_CONTEXTS
+from miz_resources import MizResourceManager
+
+class LineWidget(QWidget):
+    """Виджет для рисования тонкой оранжевой линии"""
+    def paintEvent(self, a0):
+        painter = QPainter(self)
+        # Настройка пера: оранжевый цвет, ширина 0.5 для идеальной тонкости
+        pen = QPen(QColor("#ff9900"))
+        pen.setWidthF(0.5)
+        painter.setPen(pen)
+        # Отключаем антиалиасинг для четкой линии в 1 пиксель
+        painter.setRenderHint(QPainter.Antialiasing, False)
+        # Рисуем линию от левого до правого края виджета
+        painter.drawLine(0, 0, self.width(), 0)
+
+# [MAIN_CLASS]
+class TranslationApp(QMainWindow):
+    """Основной класс приложения DCS Translation Tool"""
+    
+    def __init__(self):
+        self.is_initializing = True
+        super().__init__()
+        
+        # Разрешаем Drag & Drop для главного окна
+        self.setAcceptDrops(True)
+        
+        # === Инициализация логирования ===
+        if getattr(sys, 'frozen', False):
+            base_dir = os.path.dirname(sys.executable)
+        else:
+            base_dir = os.path.dirname(os.path.abspath(__file__))
+            
+        # Файл лога предпросмотра (будет создан только при включенном логировании)
+        self.log_file_path = os.path.join(
+            base_dir,
+            'preview_split_merge.log'
+        )
+        
+        self.last_focused_preview_info = None
+        
+        # Инициализация данных
+        self.current_file_path = None
+        self.current_miz_path = None  # Новый атрибут для хранения пути к .miz файлу
+        self.briefing_window = None   # Окно Брифинга (создаётся лениво)
+        self.current_miz_folder = "DEFAULT"  # Текущая папка локализации в .miz
+        self.miz_trans_memory = {} # Память переводов: {locale: [lines]}
+        self.current_miz_l10n_folders = [] # Список доступных локалей
+        self.is_switching_locale = False # Флаг переключения
+        self.miz_resource_manager = MizResourceManager() # Менеджер ресурсов миссии (аудио, картинки)
+        self.audio_player = None # Атрибут для синглтон-окна аудиоплеера
+        self.audio_labels_map = {} # key -> ClickableLabel для обновления имени файла
+        self.active_audio_key = None # Текущий выбранный аудиофайл (для подсветки рамкой)
+        self.current_tts_dialog = None # Текущее активное окно генерации TTS
+        # Быстрое фоновое воспроизведение в превью
+        self.quick_audio_buttons = {}  # key -> play QPushButton
+        self.warning_icons_map = {}  # key -> warning icon label
+        self.quick_playing_key = None
+        self.quick_paused = False
+        # Timer to monitor quick audio playback and reset buttons when finished
+        try:
+            self.quick_audio_timer = QTimer(self)
+            self.quick_audio_timer.timeout.connect(self._check_quick_audio)
+            self.quick_audio_timer.start(200)
+        except Exception:
+            self.quick_audio_timer = None
+        # Preview button style templates (base values)
+        # Original big buttons were ~40; current preview baseline we'll scale further by 30%
+        # New base size = 40 * 0.7 * 0.7 ≈ 20 (approx 30% smaller from previous)
+        self.preview_btn_size = 20
+        self.preview_play_font = 16
+        self.preview_stop_font = 14
+        # Vertical offsets (adjust these numbers to nudge icons up/down)
+        self.preview_play_top_offset = -2
+        self.preview_stop_top_offset = 0
+
+        self.preview_btn_base = """
+QPushButton {{
+    background-color: transparent;
+    color: #ffffff;
+    border: none;
+    font-family: 'Segoe UI Symbol', Consolas, 'Segoe UI', sans-serif;
+    font-weight: bold;
+    font-size: {size}px;
+    min-width: {w}px;
+    min-height: {w}px;
+    max-width: {w}px;
+    max-height: {w}px;
+    padding-top: {top}px;
+    text-align: center;
+}}
+QPushButton:hover {{
+    color: #ff9900;
+}}
+"""
+
+        # Precompute styles using offsets (callers will update these if offsets change)
+        self.preview_play_style = self.preview_btn_base.format(size=self.preview_play_font, w=self.preview_btn_size, top=self.preview_play_top_offset)
+        self.preview_pause_style = self.preview_play_style
+        self.preview_stop_style = self.preview_btn_base.format(size=self.preview_stop_font, w=self.preview_btn_size, top=self.preview_stop_top_offset)
+        
+        # Инциализация аудио
+        self.audio_volume = 50 # Громкость по умолчанию (0-100)
+        try:
+            try:
+                pygame.mixer.quit() # На всякий случай
+                pygame.mixer.init(44100, -16, 2, 2048)
+            except:
+                pygame.mixer.init()
+        except Exception as e:
+            print(f"DEBUG: Ошибка инициализации миксера: {e}")
+        
+        # Поиск
+        self.search_matches = []     # Индексы найденных строк
+        self.search_match_types = [] # Типы совпадений: 'text' или 'audio'
+        self.current_match_index = -1 # Текущий индекс в search_matches
+        self.highlighted_audio_key = None  # Ключ файла, выделенного в поиске
+        self.STANDARD_LOCALES = ["DEFAULT", "RU", "EN", "FR", "DE", "CN", "CS", "ES", "JP", "KO"]
+        self.current_bookmark_nav_index = -1 # Индекс текущей закладки в навигации
+        self.original_lines = []
+        self.all_lines_data = []
+        self.extra_translation_lines = [] # Строки буфера, выходящие за пределы оригинала
+        self.filter_empty = True
+        self.filter_empty_keys = True  # Новый: пропускать полностью пустые ключи
+        
+        # Общий кэш длительностей аудио (используется плеером и менеджером файлов)
+        self.shared_duration_cache = {}
+        
+        # Настройки пропуска диалога выбора локали
+        self.skip_locale_dialog = False
+        self.default_open_locale = 'DEFAULT'
+        self.recent_files = []
+        
+        # Настройки подсветки пустых полей (по умолчанию - ВКЛ и цвет #434343)
+        self.highlight_empty_fields = True
+        self.highlight_empty_color = '#434343'
+        self.debug_logs_enabled = False  # Включение логирования по умолчанию
+        self.multi_window_enabled = False # Многооконный режим по умолчанию выключен
+        ErrorLogger.ENABLED = self.debug_logs_enabled
+        ErrorLogger.setup() # Настраиваем логгер один раз
+        self.is_updating_display = False
+        self.is_preview_updating = False  # Флаг для предотвращения наложения отрисовок
+        self.is_updating_from_preview = False # Флаг для синхронизации предпросмотра
+        self.prevent_text_changed = False
+        
+        # Настройки темы (цвета зебры) — значения по умолчанию встроены в программу
+        # Визуально первая строка (index 0) использует `theme_bg_even` — поэтому
+        # для нечётных строк (1,3,...) задаём '#393939', для чётных — '#2f2f2f'
+        self.theme_bg_even = '#393939'
+        self.theme_bg_odd = '#2f2f2f'
+        self.theme_text_modified = '#ff6666'
+        self.theme_text_saved = '#2ecc71'
+        self.theme_text_session = '#bbf324'
+        
+        if getattr(sys, 'frozen', False):
+            base_dir = os.path.dirname(sys.executable)
+        else:
+            base_dir = os.path.dirname(os.path.abspath(__file__))
+            
+        self.settings_file = os.path.join(base_dir, "translation_tool_settings.json")
+        self.bookmarks_file = os.path.join(base_dir, "bookmarks.json")
+        self.bookmarks_data = {}  # {key: {"type": "star"|"question"|"alert", "comment": ""}}
+        self.bookmark_labels_map = {}  # {key: QLabel} для быстрого обновления иконки
+        self.preview_update_timer = None
+        
+        # [DEBOUNCE_SYNC] Таймер и очередь для синхронизации ИЗ предпросмотра В редактор
+        self.preview_sync_timer = QTimer()
+        self.preview_sync_timer.setSingleShot(True)
+        self.preview_sync_timer.setInterval(100) # 100 ms задержки (уменьшено по запросу UI)
+        self.preview_sync_timer.timeout.connect(self.apply_pending_preview_sync)
+        self.pending_sync_edits = {} # {index: text}
+        self.logo_pixmap_original = None
+        self.is_resizing = False  # Флаг для отслеживания изменения размера
+        self.current_language = 'ru'  # По умолчанию русский язык
+        self.saved_audio_player_expanded_height = 510 # Дефолтная высота развернутого плеера
+        self.is_active = True      # Флаг активности окна
+        
+        # Инциализация кастомного тултипа (без родителя для стабильности на Windows)
+        from widgets import CustomToolTip
+        self.custom_tooltip = CustomToolTip()
+        self.tooltip_timer = QTimer(self)
+        self.tooltip_timer.setSingleShot(True)
+        self.tooltip_timer.timeout.connect(self._show_pending_tooltip)
+        self._pending_tooltip_data = None
+        
+        # Запоминание последних папок
+        self.last_open_folder = ''  # Последняя папка для открытия файлов
+        self.last_save_folder = ''  # Последняя папка для сохранения файлов
+        self.last_audio_folder = '' # Последняя папка для выбора аудиофайлов на замену
+        
+        # Настройки шрифта для предпросмотра по умолчанию
+        self.preview_font_family = "Arial"
+        self.preview_font_size = 11
+        
+        # Настройки контекста ИИ
+        self.add_context = True    # Добавлять контекст по умолчанию
+        self.ai_context_1 = AI_CONTEXTS.get('RU', get_translation(self.current_language, 'default_context_text')) 
+
+        self.search_scope_original = True
+        self.search_scope_reference = True
+        self.search_scope_editor = True
+        self.search_scope_audio = True
+        self.search_case_sensitive = False
+        self.ai_context_2 = ""     # Дополнительный контекст ИИ
+        self.ai_context_lang_1 = "RU" # Сохраненный язык шаблона
+        self.tts_auto_play = False   # Авто-проигрывание после генерации
+
+        # Настройка состояния окна просмотра картинок
+        self.image_viewer_maximized = False
+
+        # Настройки фильтров
+        self.show_all_keys = False  # Показывать все ключи (по умолчанию выключено)
+        self.sync_scroll = False    # Синхронизация прокрутки (по умолчанию выключено)
+        self._is_syncing = False    # Флаг для предотвращения рекурсии при синхронизации
+        self.preview_title_offset = 23 # Смещение заголовка предпросмотра (в пикселях вниз)
+        self.has_unsaved_changes = False # Флаг несохраненных изменений
+        
+        # Настройки закладок (по умолчанию)
+        self.bookmark_bg_star = '#967800'
+        self.bookmark_bg_question = '#0f5000'
+        self.bookmark_bg_alert = '#5a0000'
+        self.bookmark_bg_opacity = 0.70
+
+        # Пользовательские фильтры (3 штуки)
+        self.custom_filters = []
+
+        # Парсер dictionary (новый)
+        self.dictionary_parser = LuaDictionaryParser()
+        self.campaign_parser = CampaignParser()
+
+        # Reference locale для превью (загружается с диска, read-only)
+        from reference_loader import ReferenceLoader
+        self.settings_reference_locale = 'DEFAULT'
+        self.reference_locale = 'DEFAULT'
+        self.reference_loader = ReferenceLoader()
+        self.reference_data = {}  # key -> [parts...]
+        self.cmp_reference_data = {}  # key -> [parts...] frozen at load time for .cmp
+        self.is_dictionary_mode = False # Флаг режима открытия одиночного словаря
+        
+        # Флаг для защиты только что вставленных пустых строк от удаления фильтром
+        self.suppress_empty_filter_for_indices = set()
+
+        # Вывод информации о версии
+        VersionInfo.print_version()
+        # Инициализация UI и загрузка настроек
+        self.init_ui()
+        self.load_settings()
+        self.center_on_screen()
+        
+        # Финальное обновление интерфейса после загрузки всех настроек
+        self.is_initializing = False
+        self.update_interface_language()
+        self.is_first_show = True
+        
+    @property
+    def reference_locale(self):
+        return getattr(self, '_reference_locale', 'DEFAULT')
+
+    @reference_locale.setter
+    def reference_locale(self, value):
+        try:
+            self._reference_locale = value
+        except Exception:
+            self._reference_locale = value
+        # Обновляем заголовки и сам предпросмотр сразу при изменении
+        try:
+            self.update_preview_header_texts()
+            self.update_preview()
+        except Exception:
+            pass
+        # Примечание: не инициализируем UI и не перезагружаем настройки тут,
+        # чтобы избежать рекурсивных вызовов при загрузке настроек.
+
+    
+
+    def set_modified(self, state=True):
+        """Централизованная установка флага несохраненных изменений."""
+        if getattr(self, 'is_initializing', False) and state:
+            return  # Игнорируем изменения во время инициализации
+            
+        if self.has_unsaved_changes != state:
+            self.has_unsaved_changes = state
+            # Обновляем заголовок или статусную строку если нужно
+            # (Здесь можно добавить обновление заголовка окна с символом *)
+
+    # [INITIALIZATION]
+    def init_ui(self):
+        """Инициализация пользовательского интерфейса"""
+        self.setWindowTitle(f'DCS Translation Tool v{VersionInfo.CURRENT}')
+        self.setMinimumSize(1350, 650)
+        self.setGeometry(100, 100, 1400, 900)
+
+        # Установка иконки приложения
+        icon_path = resource_path("DSCTT.ico")
+        if os.path.exists(icon_path):
+            self.setWindowIcon(QIcon(icon_path))
+        
+        # Убираем станд. заголовок, но добавляем флаги для сворачивания через панель задач
+        self.setWindowFlags(
+            Qt.FramelessWindowHint | 
+            Qt.WindowSystemMenuHint | 
+            Qt.WindowMinimizeButtonHint
+        )
+        self.setAttribute(Qt.WA_TranslucentBackground)
+        
+        # Устанавливаем атрибут для устранения моргания при изменении размера
+        self.setAttribute(Qt.WA_NoSystemBackground)
+        self.setAttribute(Qt.WA_OpaquePaintEvent)  # Добавлено для уменьшения моргания
+        
+        # Центральный виджет
+        central_widget = QWidget()
+        self.setCentralWidget(central_widget)
+        main_layout = QVBoxLayout(central_widget)
+        main_layout.setContentsMargins(7, 5, 7, 1)
+
+        # Делаем центральный виджет прозрачным — фон окна рисуется в paintEvent
+        central_widget.setStyleSheet("background-color: transparent; border: none;")
+        
+        # Настройка всех компонентов UI
+        self.setup_ui_components(main_layout)
+        # Гарантированно обновляем шапку предпросмотра и убираем заголовок группы
+        try:
+            if hasattr(self, 'preview_group'):
+                try:
+                    self.preview_group.setTitle("")
+                except Exception:
+                    pass
+            # Обновим тексты шапки (включая reference/editor локали)
+            self.update_preview_header_texts()
+        except Exception:
+            pass
+        
+        # Устанавливаем eventFilter для перетаскивания окна
+        central_widget.installEventFilter(self)
+        central_widget.setMouseTracking(True)
+        
+        # Подключение сигналов
+        self.translated_text_all.textChanged.connect(self.on_translation_changed)
+
+        # Батчевая отрисовка предпросмотра для производительности
+        self.preview_groups_queue = []
+        # Маппинг key -> group_widget для селективного апдейта превью
+        self.preview_key_to_group_widget = {}
+        self.preview_batch_timer = QTimer(self)
+        self.preview_batch_timer.timeout.connect(self.render_preview_batch)
+        
+        # Debounce для предпросмотра (иначе тяжело перерисовывать на каждый символ)
+        self.preview_update_timer = QTimer(self)
+        self.preview_update_timer.setSingleShot(True)
+        self.preview_update_timer.timeout.connect(self.update_preview)
+        
+        # Таймер для отложенного обновления после ресайза
+        self.resize_timer = QTimer(self)
+        self.resize_timer.setSingleShot(True)
+        self.resize_timer.timeout.connect(self.finish_resize)
+        
+        # Debounce для применения фильтров (чтобы пустые строки скрывались "сами" через паузу)
+        self.filter_debounce_timer = QTimer(self)
+        self.filter_debounce_timer.setSingleShot(True)
+        # При авто-фильтрации по таймеру используем инкрементальное обновление
+        self.filter_debounce_timer.timeout.connect(lambda: self.apply_filters(full_rebuild=False))
+        
+        # Статусная строка с цветом #3d4256
+        self.statusBar().setStyleSheet('''
+            QStatusBar {
+                background-color: #3d4256;
+                color: #ffffff;
+                border: none;
+                padding: 2px 5px;
+            }
+            QStatusBar::item {
+                border: none;
+            }
+        ''')
+        self.statusBar().showMessage(get_translation(self.current_language, 'status_ready'))
+        
+        # Атрибуты для перетаскивания окна
+        self.drag_position = QPoint()
+        self.dragging = False
+        
+        # Быстрое сохранение: CTRL+S (независимо от раскладки)
+        self.save_shortcut = QShortcut(QKeySequence(Qt.CTRL + Qt.Key_S), self)
+        self.save_shortcut.activated.connect(self.quick_save)
+        
+        # Фокус на поиске: CTRL+F (независимо от раскладки)
+        self.search_shortcut = QShortcut(QKeySequence("Ctrl+F"), self)
+        self.search_shortcut.activated.connect(lambda: self.focus_search(replace=False))
+        
+        self.replace_shortcut = QShortcut(QKeySequence("Ctrl+R"), self)
+        self.replace_shortcut.activated.connect(lambda: self.focus_search(replace=True))
+        
+        # Центрируем окно на экране
+        self.center_on_screen()
+
+    def focus_search(self, replace=False):
+        """Устанавливает фокус в поиск/замену и использует выделенный текст, если есть"""
+        from PyQt5.QtWidgets import QApplication
+        focus_widget = QApplication.focusWidget()
+        if focus_widget and hasattr(focus_widget, 'textCursor') and focus_widget.textCursor().hasSelection():
+            selected_text = focus_widget.textCursor().selectedText().replace('\u2029', '\n')
+            pref_idx = None
+            if hasattr(focus_widget, 'index'):
+                pref_idx = focus_widget.index
+                if pref_idx is None or pref_idx < 0:
+                    search_key = getattr(focus_widget, 'key', None)
+                    search_part = getattr(focus_widget, 'part_index', 0)
+                    if search_key and hasattr(self, 'original_lines'):
+                        for li, ld in enumerate(self.original_lines):
+                            if ld.get('key') == search_key and ld.get('part_index', 0) == search_part:
+                                pref_idx = li
+                                break
+                        else:
+                            for li, ld in enumerate(self.original_lines):
+                                if ld.get('key') == search_key:
+                                    pref_idx = li
+                                    break
+            elif hasattr(focus_widget, 'toPlainText'): # NumberedTextEdit
+                pref_idx = focus_widget.textCursor().blockNumber()
+            
+            pref_type = 'text_translated'
+            if focus_widget.isReadOnly():
+                if getattr(focus_widget, 'index', None) == -1:
+                    pref_type = 'text_reference'
+                else:
+                    pref_type = 'text_original'
+                    
+            focus_type = 'replace' if replace else 'find'
+            self.start_find_replace(selected_text, focus_type=focus_type, preferred_index=pref_idx, preferred_type=pref_type)
+            return
+
+        if replace:
+            if hasattr(self, 'replace_input') and self.replace_input.isVisible():
+                self.replace_input.setFocus()
+                self.replace_input.selectAll()
+        else:
+            if hasattr(self, 'search_input') and self.search_input.isVisible():
+                self.search_input.setFocus()
+                self.search_input.selectAll()
+
+    def center_on_screen(self):
+        """Перемещает главное окно по центру доступного экрана"""
+        try:
+            screen = QApplication.primaryScreen()
+            if not screen:
+                return
+            screen_geom = screen.availableGeometry()
+            win_geom = self.frameGeometry()
+            x = screen_geom.left() + (screen_geom.width() - win_geom.width()) // 2
+            y = screen_geom.top() + (screen_geom.height() - win_geom.height()) // 2
+            self.move(x, y)
+        except Exception as e:
+            ErrorLogger.log_error('CENTER', f'Не удалось центрировать окно: {e}')
+    
+    def paintEvent(self, event):
+        """Рисует фон окна с тонкой рамкой в 1 пиксель"""
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        
+        rect = self.rect()
+        radius = 12
+        
+        # Рисуем основной фон
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(QBrush(QColor(58, 58, 58)))  # #3a3a3a
+        painter.drawRoundedRect(rect, radius, radius)
+        
+        # РАМКА: Рисуем тонкую статичную серую рамку в 1 пиксель по периметру
+        # Используем QRectF и смещение 0.5 для четкости цвета.
+        pen = QPen(QColor(85, 85, 85), 1) # #555555
+        painter.setPen(pen)
+        painter.setBrush(Qt.NoBrush)
+        painter.drawRoundedRect(
+            QRectF(0.5, 0.5, rect.width() - 1, rect.height() - 1), 
+            radius, radius
+        )
+        
+        super().paintEvent(event)
+    
+    def resizeEvent(self, event):
+        """Обработка изменения размера окна для устранения моргания"""
+        # Если мы еще не в процессе ресайза, отключаем обновление тяжелых виджетов
+        if not self.is_resizing:
+            self.is_resizing = True
+            # Отключаем обновление для самых тяжелых виджетов
+            self.original_text_all.setUpdatesEnabled(False)
+            self.translated_text_all.setUpdatesEnabled(False)
+            self.preview_content.setUpdatesEnabled(False)
+        
+        # Перезапускаем таймер (отложенное обновление)
+        self.resize_timer.start(400)  # Изменено на 400мс после последнего изменения размера
+        
+        # Вызываем базовый обработчик
+        super().resizeEvent(event)
+        
+        # При ресайзе обновляем логотип
+        if hasattr(self, 'logo_pixmap_original') and self.logo_pixmap_original is not None:
+            self._update_logo_pixmap()
+
+        # Расширение полосы в реальном времени при увеличении окна
+        if event.oldSize().width() > 0 and self.width() > event.oldSize().width():
+            # Обновляем геометрию абсолютной линии
+            self._update_line_geometry()
+    
+    def finish_resize(self):
+        """Завершение изменения размера - включаем обновление виджетов"""
+        if self.is_resizing:
+            self.is_resizing = False
+            # Включаем обновление для виджетов
+            self.original_text_all.setUpdatesEnabled(True)
+            self.translated_text_all.setUpdatesEnabled(True)
+            self.preview_content.setUpdatesEnabled(True)
+            
+            # Принудительное обновление
+            self.original_text_all.update()
+            self.translated_text_all.update()
+            self.preview_content.update()
+            
+            # Обновляем стили рамок после изменения размера
+            self.update_border_styles()
+            
+            # Обновляем геометрию линии
+            self._update_line_geometry()
+
+            # Обновляем позицию и размер всей центральной панели (заголовок)
+            self._update_title_position()
+            
+            # Обновляем заголовки колонок предпросмотра, чтобы они центрировались по колонкам
+            if hasattr(self, 'sync_preview_header_widths'):
+                self.sync_preview_header_widths()
+    
+    def sync_preview_header_widths(self):
+        """Синхронизирует ширину заголовков с размерами колонок сплиттера предпросмотра"""
+        if not hasattr(self, 'preview_splitter') or not hasattr(self, 'preview_scroll'):
+            return
+            
+        try:
+            sizes = self.preview_splitter.sizes()
+            widgets = [self.preview_header_meta, self.preview_header_ref_widget, self.preview_header_editor]
+            for w, sz in zip(widgets, sizes):
+                w.setFixedWidth(max(1, sz))
+            # Total width = sum(sizes) + spacing (1px * 2 handles)
+            total = sum(sizes) + 2
+            # Устанавливаем ширину внутреннего контейнера заголовков
+            try:
+                if hasattr(self, 'header_inner'):
+                    self.header_inner.setFixedWidth(max(total, self.preview_scroll.viewport().width()))
+            except Exception:
+                pass
+        except Exception:
+            pass
+            
+    def _update_title_position(self):
+        """Обновляет позицию заголовка с абсолютным позиционированием"""
+        if not hasattr(self, 'center_panel'):
+            return
+            
+        # Вычисляем ширину контейнера заголовка
+        self.center_panel.adjustSize()
+        title_width = self.center_panel.sizeHint().width()
+        title_height = self.center_panel.sizeHint().height()
+        
+        # Вычисляем центр окна
+        window_center_x = self.width() // 2
+        title_x = window_center_x - title_width // 2
+        title_y = self.title_vertical_offset
+        
+        # Устанавливаем абсолютную позицию заголовка
+        self.center_panel.setGeometry(title_x, title_y, title_width, title_height)
+        
+        self.center_panel.raise_()  # Помещаем поверх всех элементов
+    
+    def update_border_styles(self):
+        """Обновляет стили рамок для текстовых полей при изменении размера"""
+        # Оригинальный текст
+        original_style = '''
+            QPlainTextEdit {
+                color: #ffffff;
+                background-color: #505050;
+                border: 2px solid #777;
+                border-radius: 6px;
+            }
+            QPlainTextEdit:focus {
+                border: 2px solid #ff9900;
+                border-radius: 6px;
+            }
+            QPlainTextEdit::selection {
+                background-color: #ff9900;
+                color: #000000;
+            }
+        '''
+        self.original_text_all.setStyleSheet(original_style)
+        
+        # Переведенный текст
+        translated_style = '''
+            QPlainTextEdit {
+                color: #ffffff;
+                background-color: #505050;
+                border: 2px solid #777;
+                border-radius: 6px;
+            }
+            QPlainTextEdit:focus {
+                border: 2px solid #ff9900;
+                border-radius: 6px;
+            }
+            QPlainTextEdit::selection {
+                background-color: #ff9900;
+                color: #000000;
+            }
+        '''
+        self.translated_text_all.setStyleSheet(translated_style)
+        
+        # Предпросмотр
+        preview_style = '''
+            background-color: #505050; 
+            border: 1px solid #777; 
+            border-radius: 6px;
+        '''
+        self.preview_content.setStyleSheet(preview_style)
+    
+    def changeEvent(self, event):
+        """Отслеживает изменение состояния окна (фокус/активность) для смены цвета рамки"""
+        if event.type() == QEvent.ActivationChange:
+            self.is_active = self.isActiveWindow()
+            self.update() # Принудительно перерисовываем рамку
+        super().changeEvent(event)
+
+    def mousePressEvent(self, event):
+        """Обработка нажатия мыши для перетаскивания окна"""
+        if event.button() == Qt.LeftButton or event.button() == Qt.RightButton:
+            self.dragging = True
+            self.drag_position = event.globalPos() - self.pos()
+            event.accept()
+        else:
+            super().mousePressEvent(event)
+    
+    def mouseMoveEvent(self, event):
+        """Обработка движения мыши для перетаскивания окна"""
+        if self.dragging and (event.buttons() & Qt.LeftButton or event.buttons() & Qt.RightButton):
+            self.move(event.globalPos() - self.drag_position)
+            event.accept()
+        else:
+            super().mouseMoveEvent(event)
+    
+    def mouseReleaseEvent(self, event):
+        """Обработка отпускания кнопки мыши"""
+        if event.button() == Qt.LeftButton or event.button() == Qt.RightButton:
+            self.dragging = False
+            event.accept()
+        else:
+            super().mouseReleaseEvent(event)
+    
+    # [LOGGING_HELPERS]
+    def _log_to_file(self, message):
+        """Логирует сообщение в файл лога с временной меткой."""
+        try:
+            if not hasattr(self, 'log_file_path') or not getattr(self, 'debug_logs_enabled', False):
+                return
+            
+            timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
+            log_entry = f"[{timestamp}] {message}\n"
+            
+            with open(self.log_file_path, 'a', encoding='utf-8') as f:
+                f.write(log_entry)
+        except Exception:
+            pass  # Предотвращаем ошибки логирования, чтобы не сломать программу
+    
+    # [UI_SETUP]
+    def setup_ui_components(self, main_layout):
+        """Настройка всех компонентов пользовательского интерфейса"""
+        
+        # 1. Верхняя панель с кнопками управления файлами
+        self.setup_top_panel(main_layout)
+        
+        # 2. Строка фильтров и инструментов (Горизонтально!)
+        filter_row_container = QWidget()
+        filter_row_layout = QHBoxLayout(filter_row_container)
+        filter_row_layout.setContentsMargins(0, 0, 0, 0)
+        filter_row_layout.setSpacing(2) # Уменьшили расстояние между левой и правой областью
+        
+        # Настройка группы фильтров (добавляется в filter_row_layout)
+        self.setup_filter_group(filter_row_layout)
+        
+        # Настройка панели инструментов (добавляется в filter_row_layout)
+        self.setup_tools_panel(filter_row_layout)
+        
+        # filter_row_layout.addStretch() # Убрали стрейч, чтобы панель инструментов могла растягиваться
+        
+        main_layout.addWidget(filter_row_container)
+        
+        # 3. Основная область (включает редакторы и предпросмотр с разделителем)
+        from widgets import CustomSplitter
+        self.main_vertical_splitter = CustomSplitter(Qt.Vertical)
+        self.main_vertical_splitter.setHandleWidth(6)
+        self.main_vertical_splitter.setStyleSheet("background-color: transparent; border: none;")
+        
+        main_layout.addWidget(self.main_vertical_splitter, 1)
+        
+        # 4. Настройка содержимого для вертикального разделителя
+        self.setup_translation_area(self.main_vertical_splitter)
+        self.setup_preview_panel(self.main_vertical_splitter)
+        
+        # Устанавливаем начальные размеры (50/50 по умолчанию)
+        self.main_vertical_splitter.setSizes([500, 500])
+
+    def setup_tools_panel(self, parent_layout):
+        """Настройка панели инструментов (справа от фильтров)"""
+        tools_container = QFrame()
+        tools_container.setObjectName("toolsPanel")
+        # Стиль под стать QGroupBox фильтров, уменьшили margin-top
+        tools_container.setStyleSheet("""
+            QFrame#toolsPanel {
+                border: 2px solid #555;
+                border-radius: 8px;
+                margin-top: 0px;
+                background-color: #505050;
+            }
+        """)
+        
+        tools_layout = QHBoxLayout(tools_container)
+        tools_layout.setContentsMargins(10, 0, 10, 0) # Минимальные отступы
+        tools_layout.setSpacing(0)
+        
+        tools_layout.addStretch() # Прижимаем кнопки к правому краю
+        
+        # Кнопка Брифинг
+        briefing_icon = resource_path("brief.png")
+        self.btn_briefing = CustomImageButton(briefing_icon, get_translation(self.current_language, 'btn_briefing'))
+        self.btn_briefing.clicked.connect(self.toggle_briefing_window)
+        tools_layout.addWidget(self.btn_briefing)
+        
+        # Кнопка Радио
+        radio_icon = resource_path("radiocat2.png")
+        if not os.path.exists(radio_icon):
+             radio_icon = resource_path("radiocat.png") # Фолбэк
+             
+        self.btn_radio = CustomImageButton(radio_icon, get_translation(self.current_language, 'btn_radio'))
+        self.btn_radio.clicked.connect(self.toggle_audio_player)
+        tools_layout.addWidget(self.btn_radio)
+        
+        # Кнопка TTS
+        tts_icon = resource_path("TTScat.png")
+        self.btn_tts = CustomImageButton(tts_icon, get_translation(self.current_language, 'tts_btn'))
+        self.btn_tts.clicked.connect(self.open_tts_window)
+        tools_layout.addWidget(self.btn_tts)
+        
+        # Кнопка Файлы
+        files_icon = resource_path("filescat.png")
+        self.btn_files = CustomImageButton(files_icon, get_translation(self.current_language, 'btn_files'))
+        self.btn_files.clicked.connect(self.open_files_window)
+        tools_layout.addWidget(self.btn_files)
+        
+        # Кнопка Настройки (Options)
+        options_icon = resource_path("optionscat.png")
+        if not os.path.exists(options_icon):
+            options_icon = resource_path("optionscat.png")
+        self.btn_settings = CustomImageButton(options_icon, get_translation(self.current_language, 'settings_btn'))
+        self.btn_settings.clicked.connect(self.open_settings_window)
+        tools_layout.addWidget(self.btn_settings)
+        
+        parent_layout.addWidget(tools_container, 1) # Добавили stretch=1 чтобы растягивалось до конца
+
+    def toggle_audio_player(self):
+        """Переключает видимость окна аудиоплеера"""
+        if self.audio_player and self.audio_player.isVisible():
+            self.audio_player.hide()
+            return
+
+        if not self.audio_player:
+            # Исправленный callback: используем handle_audio_replacement
+            def default_replace_callback(key, new_path):
+                if hasattr(self, 'handle_audio_replacement'):
+                    self.handle_audio_replacement(key, new_path)
+            
+            self.audio_player = AudioPlayerDialog(
+                None, 
+                "Radio", 
+                self.current_language, 
+                parent=self,
+                on_replace_callback=default_replace_callback, 
+                miz_resource_manager=getattr(self, 'miz_resource_manager', None),
+                current_miz_path=getattr(self, 'current_miz_path', None),
+                shared_duration_cache=self.shared_duration_cache
+            )
+            # Обнуляем ссылку при закрытии
+            self.audio_player.finished.connect(lambda: setattr(self, 'audio_player', None))
+
+        self.audio_player.reset_to_no_file()
+        self.audio_player.show()
+        self.audio_player.raise_()
+        self.audio_player.activateWindow()
+
+    def open_tts_window(self):
+        """Открывает окно TTS (Text-To-Speech) в модальном режиме с лоадером."""
+        # Ленивое создание TTSEngine (синглтон на время жизни приложения)
+        if not hasattr(self, '_tts_engine') or self._tts_engine is None:
+            self._tts_engine = TTSEngine(current_language=self.current_language)
+        
+        # Кэш сгенерированных аудио (переиспользуется между открытиями)
+        if not hasattr(self, '_tts_audio_cache') or self._tts_audio_cache is None:
+            self._tts_audio_cache = TTSAudioCache()
+        
+        # Показываем лоадер с анимированной полосой
+        loader = TTSLoadingDialog(self.current_language, self)
+        loader.show()
+        QApplication.processEvents()
+        
+        # Запускаем инициализацию движка в фоне
+        self._tts_init_worker = TTSInitWorker(self._tts_engine)
+        
+        def on_init_finished():
+            loader.close()
+            try:
+                dialog = TTSPreviewDialog("", self._tts_engine, parent=self, shared_tts_duration_cache=self.shared_duration_cache)
+                dialog.tts_audio_cache = self._tts_audio_cache
+                self.current_tts_dialog = dialog
+                dialog.exec_()
+                self.current_tts_dialog = None
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+                from localization import get_translation
+                msg = StandardInfoDialog(
+                    get_translation(self.current_language, 'error_title'),
+                    get_translation(self.current_language, 'tts_init_error_msg').format(error=str(e)),
+                    self.current_language, self, is_error=True
+                )
+                msg.exec_()
+        
+        def on_init_error(err_msg):
+            loader.close()
+            from localization import get_translation
+            msg = StandardInfoDialog(
+                get_translation(self.current_language, 'error_title'),
+                get_translation(self.current_language, 'tts_general_error_msg').format(error=err_msg),
+                self.current_language, self, is_error=True
+            )
+            msg.exec_()
+        
+        self._tts_init_worker.finished.connect(on_init_finished)
+        self._tts_init_worker.error.connect(on_init_error)
+        self._tts_init_worker.start()
+
+    def open_files_window(self):
+        """Открывает модальное окно менеджера файлов в синглтон-режиме."""
+        # Перед открытием скрываем основное окно, чтобы оно не мешало и не группировалось при сворачивании
+        self.hide()
+
+        if not hasattr(self, 'files_manager_window') or self.files_manager_window is None:
+            # Создаем окно БЕЗ родителя, чтобы Windows отображало его в таскбаре
+            # независимо от состояния главного окна (которое скрывается)
+            self.files_manager_window = FilesWindow(self.current_language, parent=None, shared_duration_cache=self.shared_duration_cache)
+            # Сохраняем ссылку на главное окно для доступа к данным
+            self.files_manager_window.main_app = self
+            
+            # Подключаем сигнал обновления ресурсов (для замены аудио/картинок)
+            if hasattr(self.files_manager_window, 'file_manager_widget'):
+                self.files_manager_window.file_manager_widget.resourcesChanged.connect(self.on_resources_modified)
+        
+        # Восстанавливаем геометрию (позицию и размер), если она есть
+        if hasattr(self, 'saved_files_window_geom') and self.saved_files_window_geom:
+            g = self.saved_files_window_geom
+            if len(g) == 4:
+                # Умное восстановление (Clamping): проверяем, вписывается ли окно в текущий экран
+                screen_geo = QApplication.primaryScreen().availableGeometry()
+                x, y, w, h = g
+                
+                # Ограничиваем размер, если он больше экрана
+                w = min(w, screen_geo.width())
+                h = min(h, screen_geo.height())
+                
+                # Центрируем, если позиция ушла за пределы (например, при отключении второго монитора)
+                if x + w > screen_geo.right() or x < screen_geo.left():
+                    x = screen_geo.left() + (screen_geo.width() - w) // 2
+                if y + h > screen_geo.bottom() or y < screen_geo.top():
+                    y = screen_geo.top() + (screen_geo.height() - h) // 2
+                
+                self.files_manager_window.setGeometry(x, y, w, h)
+    
+        # Передаём данные о ресурсах, если загружен .miz
+        if self.current_miz_path and self.miz_resource_manager:
+            self.files_manager_window.set_data(self.miz_resource_manager, self.current_miz_path)
+            
+        # Запускаем в модальном режиме
+        self.files_manager_window.exec_()
+        
+        # После закрытия возвращаем основное окно
+        self.show()
+        self.raise_()
+        self.activateWindow()
+        
+        # Обновляем статус после закрытия на всякий случай, если были изменения
+        self.refresh_audio_status()
+        
+        # Сохраняем геометрию окна после закрытия (для последующего использования)
+        self.saved_files_window_geom = [
+            self.files_manager_window.x(), 
+            self.files_manager_window.y(), 
+            self.files_manager_window.width(), 
+            self.files_manager_window.height()
+        ]
+
+
+    def toggle_briefing_window(self):
+        """Открывает модальное окно брифинга. Блокирует основную программу до закрытия."""
+        # --- 1. Собираем данные для передачи в окно ---
+        # Mission Name
+        mission_name = ''
+        key_sortie, all_idx_sortie, _ = self.find_mission_name_key_index()
+        if key_sortie and all_idx_sortie is not None and all_idx_sortie < len(self.all_lines_data):
+            mission_name = self.all_lines_data[all_idx_sortie].get('translated_text', '')
+
+        # 4 вкладки
+        tab_prefixes = [
+            'DictKey_descriptionText_', 
+            'DictKey_descriptionRedTask_', 
+            'DictKey_descriptionBlueTask_',
+            'DictKey_descriptionNeutralsTask_'
+        ]
+        tab_texts = {}
+        for i, prefix in enumerate(tab_prefixes):
+            key_found, parts = self.find_briefing_key_indices(prefix)
+            if key_found and parts:
+                lines = []
+                for all_idx, _ in parts:
+                    if all_idx < len(self.all_lines_data):
+                        lines.append(self.all_lines_data[all_idx].get('translated_text', ''))
+                tab_texts[i] = '\n'.join(lines)
+            else:
+                tab_texts[i] = ''
+
+        # --- 2. Создаём и показываем модальный диалог ---
+        dialog = BriefingWindow(self.current_language, self)
+        if hasattr(self, 'saved_briefing_window_geom') and self.saved_briefing_window_geom:
+            try:
+                dialog.setGeometry(*self.saved_briefing_window_geom)
+            except:
+                pass
+        elif hasattr(self, 'saved_briefing_window_pos') and self.saved_briefing_window_pos:
+            try:
+                dialog.move(self.saved_briefing_window_pos[0], self.saved_briefing_window_pos[1])
+            except:
+                pass
+        
+        # Применяем шрифт превью, если задан
+        if hasattr(self, 'preview_font_family') and hasattr(self, 'preview_font_size'):
+            from PyQt5.QtGui import QFont
+            font = QFont(self.preview_font_family, self.preview_font_size)
+            dialog.mission_name_edit.setFont(font)
+            for edit in dialog.briefing_edits:
+                edit.setFont(font)
+
+        dialog.load_data(mission_name, tab_texts)
+        
+        # Подключаем сигнал для прыжка к ключу
+        dialog.jump_requested.connect(self.jump_to_briefing_key)
+
+        result = dialog.exec_()
+
+        # Сохраняем позицию окна
+        self.saved_briefing_window_geom = [dialog.x(), dialog.y(), dialog.width(), dialog.height()]
+        self.saved_briefing_window_pos = [dialog.x(), dialog.y()]
+
+        # --- 3. Если пользователь нажал «Сохранить» ---
+        if result == QDialog.Accepted:
+            new_name, new_tabs = dialog.get_result()
+            self._apply_briefing_result(new_name, new_tabs, key_sortie, all_idx_sortie, tab_prefixes)
+
+    def _apply_briefing_result(self, new_name, new_tabs, key_sortie, all_idx_sortie, tab_prefixes):
+        """Применяет результат из модального окна брифинга в данные."""
+        changed = False
+        self._briefing_structural_change = False
+
+        # --- Mission Name ---
+        if key_sortie and all_idx_sortie is not None and all_idx_sortie < len(self.all_lines_data):
+            old_name = self.all_lines_data[all_idx_sortie].get('translated_text', '')
+            if old_name != new_name:
+                self.all_lines_data[all_idx_sortie]['translated_text'] = new_name
+                self.all_lines_data[all_idx_sortie]['is_empty'] = not bool(new_name.strip())
+                self.all_lines_data[all_idx_sortie]['session_modified'] = True
+                # Обновляем original_lines тоже
+                _, _, p_idx = self.find_mission_name_key_index()
+                if p_idx is not None and p_idx < len(self.original_lines):
+                    self.original_lines[p_idx]['translated_text'] = new_name
+                    self.original_lines[p_idx]['is_empty'] = not bool(new_name.strip())
+                changed = True
+        elif not key_sortie and new_name.strip():
+            # СОЗДАНИЕ: Только для миссий (.miz), так как в кампаниях брифинг не нужен
+            is_cmp = self.current_file_path and self.current_file_path.lower().endswith('.cmp')
+            if not is_cmp:
+                # Фиксированный ключ для названия миссии = 5
+                fixed_key = "DictKey_sortie_5"
+                new_entry = self._create_briefing_entry_template(fixed_key, new_name)
+                self.all_lines_data.append(new_entry)
+                self.original_lines.append(new_entry)
+                key_sortie = fixed_key
+                changed = True
+                self._briefing_structural_change = True
+
+        # --- 4 вкладки ---
+        fixed_tab_indices = {
+            'DictKey_descriptionText_': '1',
+            'DictKey_descriptionRedTask_': '2',
+            'DictKey_descriptionBlueTask_': '3',
+            'DictKey_descriptionNeutralsTask_': '4'
+        }
+        
+        for i, prefix in enumerate(tab_prefixes):
+            new_text = new_tabs.get(i, '')
+            new_lines = new_text.split('\n')
+            key_found, old_parts = self.find_briefing_key_indices(prefix)
+
+            if not key_found:
+                if new_text.strip():
+                    # СОЗДАНИЕ: Используем фиксированный номер
+                    suffix = fixed_tab_indices.get(prefix, str(i+1))
+                    fixed_key = f"{prefix}{suffix}"
+                    
+                    for part_i, txt in enumerate(new_lines):
+                        new_entry = self._create_briefing_entry_template(fixed_key, txt, part_i)
+                        self.all_lines_data.append(new_entry)
+                        self.original_lines.append(new_entry)
+                    
+                    changed = True
+                    self._briefing_structural_change = True
+                continue
+
+            # Текущие тексты из old_parts
+            old_lines = []
+            for all_idx, _ in old_parts:
+                if all_idx < len(self.all_lines_data):
+                    old_lines.append(self.all_lines_data[all_idx].get('translated_text', ''))
+
+            # Если текст не изменился — пропускаем
+            if old_lines == new_lines:
+                continue
+
+            changed = True
+
+            # Обновляем существующие parts
+            for part_i, (all_idx, preview_idx) in enumerate(old_parts):
+                if part_i < len(new_lines):
+                    txt = new_lines[part_i]
+                else:
+                    txt = ''
+                if all_idx < len(self.all_lines_data):
+                    old_text = self.all_lines_data[all_idx].get('translated_text', '')
+                    self.all_lines_data[all_idx]['translated_text'] = txt
+                    self.all_lines_data[all_idx]['is_empty'] = not bool(txt.strip())
+                    # Помечаем session_modified только если эта конкретная строка изменилась
+                    if old_text != txt:
+                        self.all_lines_data[all_idx]['session_modified'] = True
+                if preview_idx is not None and preview_idx < len(self.original_lines):
+                    self.original_lines[preview_idx]['translated_text'] = txt
+                    self.original_lines[preview_idx]['is_empty'] = not bool(txt.strip())
+                    if all_idx < len(self.all_lines_data) and self.all_lines_data[all_idx].get('session_modified'):
+                        self.original_lines[preview_idx]['session_modified'] = True
+
+            # Если добавились новые строки
+            if len(new_lines) > len(old_parts) and old_parts:
+                last_all_idx = old_parts[-1][0]
+                last_preview_idx = old_parts[-1][1]
+                for extra_i in range(len(old_parts), len(new_lines)):
+                    template = self.all_lines_data[old_parts[0][0]].copy()
+                    template['translated_text'] = new_lines[extra_i]
+                    template['original_text'] = ''
+                    template['display_text'] = ''
+                    template['original_translated_text'] = ''
+                    template['is_empty'] = not bool(new_lines[extra_i].strip())
+                    template['part_index'] = extra_i
+
+                    insert_pos = last_all_idx + 1 + (extra_i - len(old_parts))
+                    self.all_lines_data.insert(insert_pos, template)
+
+                    if last_preview_idx is not None:
+                        new_preview_pos = last_preview_idx + 1 + (extra_i - len(old_parts))
+                        self.original_lines.insert(new_preview_pos, template)
+
+            # Если удалились строки
+            elif len(new_lines) < len(old_parts):
+                parts_to_remove = old_parts[len(new_lines):]
+                for all_idx, preview_idx in reversed(parts_to_remove):
+                    if all_idx < len(self.all_lines_data):
+                        self.all_lines_data.pop(all_idx)
+                    if preview_idx is not None and preview_idx < len(self.original_lines):
+                        self.original_lines.pop(preview_idx)
+
+        if changed:
+            self.set_modified(True)
+            
+            # Точечно обновляем виджеты для каждого ключа
+            keys_to_update = set()
+            if key_sortie: keys_to_update.add(key_sortie)
+            for i, prefix in enumerate(tab_prefixes):
+                key_found, _ = self.find_briefing_key_indices(prefix)
+                if key_found:
+                    keys_to_update.add(key_found)
+            
+            for k in keys_to_update:
+                if k.startswith('DictKey_sortie_') or k == 'name' or k.startswith('name_'):
+                    # Для названия миссии (одна строка) используем простой soft update
+                    self._update_preview_widgets_for_key(k)
+                else:
+                    # Для вкладок (брифинг) используем умную синхронизацию строк
+                    self._sync_preview_widgets_for_briefing_tab(k)
+        
+        if getattr(self, '_briefing_structural_change', False):
+            # Переоцениваем фильтры, чтобы новый ключ появился в списке/превью
+            self.apply_filters()
+            self.update_display(update_preview=True)
+        elif changed:
+            self.apply_filters()
+            self.update_display(update_preview=False)
+
+    def jump_to_briefing_key(self, key_prefix):
+        """Прыгает к первому ключу с указанным префиксом в редакторах и предпросмотре"""
+        found_key = None
+        
+        # 1. Точно определяем ключ, используя существующую логику брифинга
+        if key_prefix == 'DictKey_sortie_' or key_prefix == 'name':
+            found_key, _, _ = self.find_mission_name_key_index()
+        else:
+            found_key, _ = self.find_briefing_key_indices(key_prefix)
+        
+        if not found_key:
+            # Если ключ не найден вообще в данных
+            self.statusBar().showMessage(get_translation(self.current_language, 'key_not_found_msg', key_name=key_prefix), 2000)
+            return
+            
+        # 1a. Проверяем, есть ли в этом ключе хоть какой-то текст
+        # Это нужно, чтобы отличить "пустой шаблон" от реально существующего, но скрытого текста
+        has_content = False
+        for ld in self.all_lines_data:
+            if ld.get('key') == found_key:
+                txt = (ld.get('translated_text', '') or ld.get('original_text', '')).strip()
+                if txt:
+                    has_content = True
+                    break
+        
+        if not has_content:
+            # Если в ключе нет текста, то для пользователя его "нет"
+            self.statusBar().showMessage(get_translation(self.current_language, 'key_not_found_msg', key_name=found_key), 2000)
+            return
+
+        # 2. Ищем индекс ТОЛЬКО среди видимых (отфильтрованных) строк для редактора
+        editor_idx = -1
+        for i, line_data in enumerate(self.original_lines):
+            if line_data.get('key') == found_key:
+                editor_idx = i
+                break
+        
+        if editor_idx == -1:
+            # Ключ есть в данных и в нем есть текст, но он скрыт фильтрами
+            self.statusBar().showMessage(get_translation(self.current_language, 'key_hidden_by_filters_msg', key_name=found_key), 3000)
+            return
+
+        # 3. Прокручиваем редакторы
+        # Блокируем сигналы, чтобы избежать "дерганья" при взаимной синхронизации
+        self.original_text_all.verticalScrollBar().blockSignals(True)
+        self.translated_text_all.verticalScrollBar().blockSignals(True)
+        
+        try:
+            for editor in [self.original_text_all, self.translated_text_all]:
+                if editor:
+                    block = editor.document().findBlockByNumber(editor_idx)
+                    if block.isValid():
+                        cursor = editor.textCursor()
+                        cursor.setPosition(block.position())
+                        editor.setTextCursor(cursor)
+                        editor.ensureCursorVisible()
+        finally:
+            self.original_text_all.verticalScrollBar().blockSignals(False)
+            self.translated_text_all.verticalScrollBar().blockSignals(False)
+        
+        # 4. Прокручиваем предпросмотр
+        if hasattr(self, 'preview_key_to_group_widget'):
+            widgets = self.preview_key_to_group_widget.get(found_key)
+            if widgets:
+                # Берем первый виджет (meta_row) для прокрутки к нему
+                target_widget = widgets[0]
+                
+                # Вычисляем позицию виджета по Y внутри контейнера (preview_widget)
+                y_pos = target_widget.pos().y()
+                
+                # Ставим значение скроллбара так, чтобы виджет оказался в самом верху (с небольшим отступом)
+                # Учитываем, что значение не может быть меньше 0 или больше максимума
+                v_scrollbar = self.preview_scroll.verticalScrollBar()
+                new_value = max(0, y_pos - 10)
+                v_scrollbar.setValue(new_value)
+
+    def _create_briefing_entry_template(self, key, text, part_index=0):
+        """Создает шаблон записи для нового ключа брифинга."""
+        return {
+            'key': key,
+            'part_index': part_index,
+            'original_text': '', # При создании оригинала нет
+            'display_text': '',
+            'translated_text': text,
+            'original_translated_text': '',
+            'should_translate': True,
+            'is_empty': not bool(text.strip()),
+            'file_index': 0,
+            'entry_start_line': 0
+        }
+
+    def _sync_preview_widgets_for_briefing_tab(self, key):
+        """Интеллектуально обновляет виджеты превью для ключа брифинга.
+        Добавляет или удаляет виджеты в trans_row_layout, чтобы соответствовать кол-ву строк в данных.
+        """
+        if not hasattr(self, 'preview_key_to_group_widget') or key not in self.preview_key_to_group_widget:
+            return False
+            
+        try:
+            from widgets import PreviewTextEdit
+            # meta_widget, orig_row_widget, trans_row_widget
+            mw, ow, tw = self.preview_key_to_group_widget[key]
+            trl = tw.layout()
+            
+            # 1. Получаем список текущих PreviewTextEdit в колонке перевода
+            edits = tw.findChildren(PreviewTextEdit)
+            edits.sort(key=lambda x: getattr(x, 'part_index', 0))
+            
+            # 2. Получаем список данных (индексы строк в original_lines для этого ключа)
+            key_preview_indices = []
+            for i, line in enumerate(self.original_lines):
+                if line.get('key') == key:
+                    key_preview_indices.append(i)
+            
+            # 3. Синхронизируем
+            # a) Обновляем существующие
+            for i in range(min(len(edits), len(key_preview_indices))):
+                edit = edits[i]
+                idx = key_preview_indices[i]
+                l_data = self.original_lines[idx]
+                new_text = l_data.get('translated_text', '')
+                edit.index = idx # Обновляем индекс на случай сдвигов
+                if edit.toPlainText() != new_text:
+                    edit._suppress_adjust = True
+                    edit.setPlainText(new_text)
+                    edit._suppress_adjust = False
+                    edit.on_content_changed()
+                # Обновляем цвет виджета в соответствии с текущим состоянием
+                is_mod = new_text != l_data.get('original_translated_text', '')
+                color = self._get_translation_color(is_mod, l_data)
+                style = f"color: {color}; background-color: transparent; border: none; border-radius: 0px;"
+                edit.setStyleSheet(style)
+                edit._original_style = style
+            
+            # b) Удаляем лишние виджеты
+            if len(edits) > len(key_preview_indices):
+                for i in range(len(key_preview_indices), len(edits)):
+                    edit = edits[i]
+                    trl.removeWidget(edit)
+                    edit.deleteLater()
+            
+            # c) Добавляем недостающие виджеты
+            elif len(edits) < len(key_preview_indices):
+                # Находим layouts для передачи в сигналы (как в update_preview)
+                # Это нужно, чтобы Enter/Backspace работали в новых виджетах
+                orig_row_layout = ow.layout()
+                trans_row_layout = trl
+                
+                for i in range(len(edits), len(key_preview_indices)):
+                    idx = key_preview_indices[i]
+                    l_data = self.original_lines[idx]
+                    t_text = l_data.get('translated_text', '')
+                    
+                    new_edit = PreviewTextEdit(idx, t_text, read_only=False, parent=self)
+                    new_edit.key = key
+                    new_edit.is_reference = False
+                    new_edit.part_index = l_data.get('part_index', i)
+                    
+                    # Стиль (упрощенно как в update_preview)
+                    is_mod = t_text != l_data.get('original_translated_text', '')
+                    color = self._get_translation_color(is_mod, l_data)
+                    style = f"color: {color}; background-color: transparent; border: none; border-radius: 0px;"
+                    new_edit.setStyleSheet(style)
+                    new_edit._original_style = style
+                    
+                    # Подключаем сигналы
+                    new_edit.text_changed.connect(
+                        lambda *args, te=new_edit: 
+                        self.on_preview_text_modified(te, te.index, self.original_lines[te.index])
+                    )
+                    new_edit.line_inserted.connect(
+                        lambda ins_idx, move_text, te=new_edit,
+                               orl=orig_row_layout, trl=trans_row_layout,
+                               mw=mw, orw=ow, trw=tw:
+                        self.on_preview_line_inserted(ins_idx, move_text, te, orl, trl, mw, orw, trw)
+                    )
+                    new_edit.line_deleted.connect(lambda del_idx, merge_text, te=new_edit: self.on_preview_line_deleted(del_idx, te, merge_text))
+                    
+                    # Вставляем в конец layout (или перед stretch если он есть)
+                    # В нашей структуре stretch обычно в конце
+                    insert_pos = trl.count() - 1 # Перед stretch
+                    trl.insertWidget(insert_pos, new_edit, 0, Qt.AlignTop)
+            
+            # 4. После изменений во ВСЕХ группах, нужно обновить индексы у ВСЕХ виджетов ниже
+            # Но _apply_briefing_result вызывает это последовательно.
+            # Поэтому мы ПЕРЕСЧИТЫВАЕМ индексы для ВСЕХ виджетов превью, чтобы они были актуальны.
+            self._reindex_all_preview_widgets()
+            
+            return True
+        except Exception:
+            return False
+
+    def _reindex_all_preview_widgets(self):
+        """Пересчитывает индексы во всех существующих виджетах превью на основе их ключа и порядка."""
+        if not hasattr(self, 'preview_key_to_group_widget'):
+            return
+            
+        # Строим карту ключ -> список индексов из модели
+        key_to_model_indices = {}
+        for i, line in enumerate(self.original_lines):
+            k = line.get('key')
+            if k not in key_to_model_indices:
+                key_to_model_indices[k] = []
+            key_to_model_indices[k].append(i)
+            
+        from widgets import PreviewTextEdit
+        for key, widgets in self.preview_key_to_group_widget.items():
+            tw = widgets[2]
+            edits = tw.findChildren(PreviewTextEdit)
+            edits.sort(key=lambda x: getattr(x, 'part_index', 0))
+            
+            model_indices = key_to_model_indices.get(key, [])
+            for i, edit in enumerate(edits):
+                if i < len(model_indices):
+                    edit.index = model_indices[i]
+
+    def _update_preview_widgets_for_key(self, key):
+        """Обновляет текст в существующих виджетах превью для конкретного ключа.
+        Возвращает True в случае успеха, False если виджеты не найдены или требуется перерисовка.
+        """
+        if not hasattr(self, 'preview_key_to_group_widget') or key not in self.preview_key_to_group_widget:
+            return False
+            
+        try:
+            from widgets import PreviewTextEdit
+            # Извлекаем (meta_widget, orig_row_widget, trans_row_widget)
+            widgets = self.preview_key_to_group_widget[key]
+            if not isinstance(widgets, (tuple, list)) or len(widgets) < 3:
+                return False
+                
+            tw = widgets[2] # Колонка перевода
+            edits = tw.findChildren(PreviewTextEdit)
+            if not edits:
+                return False
+                
+            # Сортируем по part_index для надежности
+            edits.sort(key=lambda x: getattr(x, 'part_index', 0))
+            
+            # Проверяем, что кол-во виджетов соответствует кол-ву строк в original_lines для этого ключа
+            # (Хотя если structural_change=False, это должно быть так)
+            
+            updated_any = False
+            for edit in edits:
+                idx = edit.index
+                if 0 <= idx < len(self.original_lines):
+                    l_data = self.original_lines[idx]
+                    new_text = l_data.get('translated_text', '')
+                    if edit.toPlainText() != new_text:
+                        edit._suppress_adjust = True
+                        edit.setPlainText(new_text)
+                        edit._suppress_adjust = False
+                        edit.on_content_changed() # Обновляем высоту
+                        updated_any = True
+                    # Обновляем цвет виджета
+                    is_mod = new_text != l_data.get('original_translated_text', '')
+                    color = self._get_translation_color(is_mod, l_data)
+                    style = f"color: {color}; background-color: transparent; border: none; border-radius: 0px;"
+                    edit.setStyleSheet(style)
+                    edit._original_style = style
+            
+            return True
+        except Exception:
+            return False
+
+    def find_mission_name_key_index(self):
+        """Находит индекс для названия миссии.
+        Для .miz: DictKey_sortie_...
+        Для .cmp: name, name_RU, name_DE и т.д.
+        Возвращает (key, all_idx, preview_idx)
+        """
+        if not hasattr(self, 'all_lines_data'):
+            return None, None, None
+            
+        # 1. Собираем все кандидаты (sortie или name)
+        candidates = []
+        for i, line_data in enumerate(self.all_lines_data):
+            key = line_data.get('key', '')
+            if (key.startswith('DictKey_sortie_') or 
+                key == 'name' or 
+                key.startswith('name_')):
+                candidates.append((key, i))
+        
+        if not candidates:
+            return None, None, None
+            
+        # 2. Пытаемся найти идеальный ключ
+        key_found, all_idx = None, None
+        is_cmp = self.current_file_path and self.current_file_path.lower().endswith('.cmp')
+        
+        if not is_cmp:
+            # Для миссий ПРИОРИТЕТ за фиксированным ключом DictKey_sortie_5
+            for k, i in candidates:
+                if k == "DictKey_sortie_5":
+                    key_found, all_idx = k, i
+                    break
+        else:
+            # Для кампаний приоритет за текущим языком (name_RU и т.д.)
+            lang_suffix = f"_{self.current_language.upper()}"
+            for k, i in candidates:
+                if k.endswith(lang_suffix):
+                    key_found, all_idx = k, i
+                    break
+                
+        # Если не нашли по приоритету, ищем в reference_data
+        if key_found is None:
+            if hasattr(self, 'reference_data') and self.reference_data:
+                for rk in self.reference_data:
+                    if rk.startswith('DictKey_sortie_') or rk == 'name' or rk.startswith('name_'):
+                        # Проверяем в кандидатах
+                        for ck, ci in candidates:
+                            if ck == rk:
+                                key_found, all_idx = ck, ci
+                                break
+                    if key_found: break
+        
+        # Если всё еще не нашли, берем просто первый подходящий из списка
+        if key_found is None:
+            for k, i in candidates:
+                if k.startswith('DictKey_sortie_') or k == 'name':
+                    key_found, all_idx = k, i
+                    break
+        
+        if key_found is None:
+            key_found, all_idx = candidates[0]
+
+        # Финальный fallback: если выбранный ключ пустой, а среди кандидатов есть непустой —
+        # берём тот, у которого есть фактический текст (решает проблему дублей sortie_272/sortie_1266)
+        sortie_candidates = [(k, i) for k, i in candidates if k.startswith('DictKey_sortie_') or k == 'name' or k.startswith('name_')]
+        if len(sortie_candidates) > 1 and key_found is not None and all_idx is not None:
+            current_text = self.all_lines_data[all_idx].get('translated_text', '') or self.all_lines_data[all_idx].get('original_text', '')
+            if not current_text.strip():
+                for ck, ci in sortie_candidates:
+                    txt = self.all_lines_data[ci].get('translated_text', '') or self.all_lines_data[ci].get('original_text', '')
+                    if txt.strip():
+                        key_found, all_idx = ck, ci
+                        break
+        
+        # 3. Ищем preview_idx
+        preview_idx = None
+        if key_found and hasattr(self, 'original_lines'):
+            for i, line in enumerate(self.original_lines):
+                if line.get('key') == key_found:
+                    preview_idx = i
+                    break
+        
+        return key_found, all_idx, preview_idx
+
+    def find_briefing_key_indices(self, key_prefix):
+        """Находит ВСЕ части (parts) ключа с данным префиксом.
+        Возвращает (key_found, [(all_idx, preview_idx), ...])
+        """
+        if not hasattr(self, 'all_lines_data'):
+            return None, []
+
+        # 1. Собираем все ключи, начинающиеся с данного префикса
+        candidate_keys = []
+        for i, line_data in enumerate(self.all_lines_data):
+            key = line_data.get('key', '')
+            if key.startswith(key_prefix):
+                candidate_keys.append((key, i))
+
+        if not candidate_keys:
+            return None, []
+
+        # 2. Приоритет за фиксированным ключом
+        fixed_indices = {
+            'DictKey_descriptionText_': '1',
+            'DictKey_descriptionRedTask_': '2',
+            'DictKey_descriptionBlueTask_': '3',
+            'DictKey_descriptionNeutralsTask_': '4'
+        }
+        
+        target_fixed_key = None
+        if key_prefix in fixed_indices:
+            target_fixed_key = f"{key_prefix}{fixed_indices[key_prefix]}"
+            
+        key_found = None
+        if target_fixed_key:
+            for k, i in candidate_keys:
+                if k == target_fixed_key:
+                    key_found = k
+                    break
+        
+        # 3. Если фиксированный не найден, ищем через DEFAULT/Reference
+        if not key_found:
+            unique_keys = set(k for k, _ in candidate_keys)
+            if len(unique_keys) == 1:
+                key_found = candidate_keys[0][0]
+            else:
+                key_found = candidate_keys[0][0]
+                
+                # Сначала проверяем в reference_data (она загружена всегда)
+                ref_found = False
+                if hasattr(self, 'reference_data') and self.reference_data:
+                    for k in self.reference_data:
+                        if k.startswith(key_prefix) and k in unique_keys:
+                            key_found = k
+                            ref_found = True
+                            break
+            
+                # Если не нашли в reference, проверяем память DEFAULT
+                if not ref_found:
+                    default_data = self.miz_trans_memory.get('DEFAULT', {}).get('all_lines_data', [])
+                    if default_data:
+                        for item in default_data:
+                            k = item.get('key', '')
+                            if k.startswith(key_prefix):
+                                # Ищем этот ключ в текущих данных
+                                if k in unique_keys:
+                                    key_found = k
+                                break
+
+                # Финальный fallback: если выбранный ключ пустой, а другой — нет,
+                # берём ключ с непустым содержимым (решает проблему с дублями 269/1263)
+                if len(unique_keys) > 1:
+                    current_text = ''
+                    for i, ld in enumerate(self.all_lines_data):
+                        if ld.get('key') == key_found:
+                            current_text = ld.get('translated_text', '') or ld.get('original_text', '')
+                            break
+                    if not current_text.strip():
+                        # Ищем ключ с непустым текстом
+                        best_key = key_found
+                        best_len = 0
+                        for uk in unique_keys:
+                            for ld in self.all_lines_data:
+                                if ld.get('key') == uk:
+                                    txt = ld.get('translated_text', '') or ld.get('original_text', '')
+                                    if len(txt.strip()) > best_len:
+                                        best_len = len(txt.strip())
+                                        best_key = uk
+                                    break
+                        if best_len > 0:
+                            key_found = best_key
+
+        # 3. Собираем все индексы для найденного ключа
+        parts = []
+        for i, line_data in enumerate(self.all_lines_data):
+            if line_data.get('key') == key_found:
+                # Ищем preview_idx
+                preview_idx = None
+                if hasattr(self, 'original_lines'):
+                    for j, line in enumerate(self.original_lines):
+                        if line is line_data:  # Сравниваем по ссылке — точное совпадение
+                            preview_idx = j
+                            break
+                parts.append((i, preview_idx))
+
+        return key_found, parts
+
+
+    def open_settings_window(self):
+        """Открывает окно настроек (немодально)"""
+        if hasattr(self, 'settings_window') and self.settings_window and self.settings_window.isVisible():
+            self.settings_window.hide()
+            return
+        # Suppress autosave while settings dialog is being created/shown to avoid partial saves
+        try:
+            self._suppress_settings_save = True
+        except Exception:
+            pass
+
+        from dialogs import SettingsWindow
+
+        # Always recreate the settings window to ensure fresh snapshot of current parent values
+        self.settings_window = SettingsWindow(self.current_language, self)
+        if hasattr(self, 'saved_settings_window_geom') and self.saved_settings_window_geom:
+            try:
+                self.settings_window.setGeometry(*self.saved_settings_window_geom)
+            except:
+                pass
+        elif hasattr(self, 'saved_settings_window_pos') and self.saved_settings_window_pos:
+            try:
+                self.settings_window.move(self.saved_settings_window_pos[0], self.saved_settings_window_pos[1])
+            except:
+                pass
+
+        self.settings_window.show()
+        self.settings_window.raise_()
+        self.settings_window.activateWindow()
+
+
+    
+    def setup_top_panel(self, main_layout):
+        """Настройка верхней панели с кнопками управления файлами"""
+        # Изменяем на QVBoxLayout, чтобы размещать элементы вертикально
+        top_panel_layout = QVBoxLayout()
+        top_panel_layout.setContentsMargins(5, 2, 5, 5)
+        top_panel_layout.setSpacing(5)
+        
+        # ЛЕВАЯ ЧАСТЬ: кнопки управления файлами
+        left_panel = QWidget()
+        left_panel.setStyleSheet("background-color: transparent; border: none;")
+        left_layout = QVBoxLayout(left_panel)
+        left_layout.setContentsMargins(0, 0, 0, 0)
+        left_layout.setSpacing(5)
+        
+        # ГОРИЗОНТАЛЬНЫЙ КОНТЕЙНЕР для Drag.png и языкового переключателя
+        drag_lang_container = QWidget()
+        drag_lang_layout = QHBoxLayout(drag_lang_container)
+        drag_lang_layout.setContentsMargins(0, 0, 0, 0)
+        drag_lang_layout.setSpacing(5)
+        
+        # Drag.png в левом верхнем углу
+        self.drag_label = QLabel()
+        self.drag_label.setFixedSize(34, 34)
+        self.drag_label.setCursor(Qt.PointingHandCursor)
+        
+        # Загружаем PNG из папки с программой
+        png_path = resource_path("Drag.png")
+        if os.path.exists(png_path):
+            self.drag_pixmap = QPixmap(png_path)
+            self.drag_label.setPixmap(self.drag_pixmap.scaled(34, 34, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+        else:
+            # Заглушка: символ U+2194
+            self.drag_label.setText("↔")
+            self.drag_label.setStyleSheet("""
+                QLabel {
+                    background-color: #505050;
+                    color: #ff9900;
+                    font-size: 18px;
+                    font-weight: bold;
+                    border: 2px solid #ff9900;
+                    border-radius: 6px;
+                qproperty-alignment: AlignCenter;
+                }
+            """)
+        
+        # Используем кастомные тултипы
+        self.register_custom_tooltip(self.drag_label, get_translation(self.current_language, 'tooltip_drag'), side='right')
+        
+        drag_lang_layout.addWidget(self.drag_label)
+        
+        # ЯЗЫКОВОЙ ПЕРЕКЛЮЧАТЕЛЬ - справа от drag.png
+        # Метка "EN" слева
+        en_label = QLabel("EN")
+        en_label.setStyleSheet("color: #ffffff; font-size: 9px; font-weight: bold;")
+        en_label.setFixedWidth(16)
+        drag_lang_layout.addWidget(en_label)
+        
+        # Переключатель языков
+        self.language_toggle = LanguageToggleSwitch()
+        self.language_toggle.toggled.connect(self.change_language)
+        # Устанавливаем начальное состояние (True = RU по умолчанию)
+        self.language_toggle.setChecked(self.current_language == 'ru')
+        drag_lang_layout.addWidget(self.language_toggle)
+        
+        # Метка "RU" справа
+        ru_label = QLabel("RU")
+        ru_label.setStyleSheet("color: #ffffff; font-size: 9px; font-weight: bold;")
+        ru_label.setFixedWidth(16)
+        drag_lang_layout.addWidget(ru_label)
+        
+        drag_lang_layout.addStretch()
+        
+        left_layout.addWidget(drag_lang_container)
+        
+        # Контейнер для кнопок и надписей о файлах
+        buttons_container = QWidget()
+        buttons_layout = QVBoxLayout(buttons_container)
+        buttons_layout.setContentsMargins(0, 0, 0, 0)
+        buttons_layout.setSpacing(5)
+        
+        # Контейнер для единой кнопки «Открыть» и информации о файле
+        unified_open_container = QWidget()
+        unified_open_layout = QHBoxLayout(unified_open_container)
+        unified_open_layout.setContentsMargins(0, 0, 0, 0)
+        unified_open_layout.setSpacing(10)
+        
+        # Единая кнопка «Открыть» с выпадающим меню
+        self.open_unified_btn = QToolButton()
+        self.open_unified_btn.setText(get_translation(self.current_language, 'open_unified_btn'))
+        self.open_unified_btn.setPopupMode(QToolButton.MenuButtonPopup)
+        self.open_unified_btn.setCursor(Qt.PointingHandCursor)
+        self.open_unified_btn.clicked.connect(self.open_any_file)
+        self.open_unified_btn.setStyleSheet('''
+            QToolButton {
+                background-color: #cccccc;
+                color: #000000;
+                border: none;
+                padding: 0px 16px;
+                border-radius: 17px;
+                font-weight: bold;
+                font-size: 12px;
+                text-align: left;
+                min-height: 34px;
+            }
+            QToolButton:hover {
+                background-color: #b8b8b8;
+            }
+            QToolButton:pressed {
+                background-color: #a3a3a3;
+            }
+            QToolButton::menu-button {
+                border: none;
+                border-left: 1px solid #999999;
+                border-top-right-radius: 17px;
+                border-bottom-right-radius: 17px;
+                width: 24px;
+            }
+            QToolButton::menu-button:hover {
+                background-color: #b8b8b8;
+            }
+            QToolButton::menu-indicator {
+                subcontrol-position: center;
+                subcontrol-origin: margin;
+                image: none;
+            }
+        ''')
+        
+        # Выпадающее меню для кнопки
+        self.recent_menu = QMenu(self)
+        self.recent_menu.setStyleSheet("""
+            QMenu {
+                background-color: #2b2b2b;
+                color: #ffffff;
+                border: 1px solid #ff9900;
+                padding: 4px;
+                min-width: 180px;
+            }
+            QMenu::item {
+                padding: 6px 20px;
+                border-radius: 4px;
+            }
+            QMenu::item:selected {
+                background-color: #ff9900;
+                color: #000000;
+            }
+            QMenu::item:disabled {
+                color: #888888;
+            }
+            QMenu::separator {
+                height: 1px;
+                background-color: #555555;
+                margin: 4px 10px;
+            }
+        """)
+        self.open_unified_btn.setMenu(self.recent_menu)
+        
+        # Подключаем кастомные тултипы для меню недавних файлов
+        self.recent_menu.setMouseTracking(True)
+        self.recent_menu.installEventFilter(self)
+        self.recent_menu.hovered.connect(self._on_recent_menu_hovered)
+        self.recent_menu.aboutToHide.connect(self._on_recent_menu_hidden)
+        self.recent_menu.aboutToShow.connect(self._on_recent_menu_show)
+        
+        # Контейнер для меток обычного файла (Белый префикс + Оранжевое имя + Локаль для .cmp)
+        self.selected_file_label = QWidget()
+        selected_file_layout = QHBoxLayout(self.selected_file_label)
+        selected_file_layout.setContentsMargins(0, 0, 0, 0)
+        selected_file_layout.setSpacing(5)
+
+        # Контейнер для "Файл:" и названия файла для единого тултипа
+        self.file_info_container = QWidget()
+        self.file_info_container.setStyleSheet("background: transparent; border: none;")
+        file_info_layout = QHBoxLayout(self.file_info_container)
+        file_info_layout.setContentsMargins(0, 0, 0, 0)
+        file_info_layout.setSpacing(5)
+
+        self.file_prefix_label = QLabel()
+        self.file_prefix_label.setStyleSheet("color: white; font-weight: bold; background: transparent; border: none;")
+        self.file_prefix_label.setAttribute(Qt.WA_TransparentForMouseEvents)
+        
+        self.file_name_label = QLabel()
+        self.file_name_label.setStyleSheet("color: #ff9900; font-weight: bold; background: transparent; border: none;")
+        self.file_name_label.setAttribute(Qt.WA_TransparentForMouseEvents)
+
+        file_info_layout.addWidget(self.file_prefix_label)
+        file_info_layout.addWidget(self.file_name_label)
+
+        # Контейнер для локализации .cmp (аналогично .miz)
+        self.file_loc_prefix_label = QLabel()
+        self.file_loc_prefix_label.setStyleSheet("color: white; font-weight: bold; background: transparent; border: none;")
+        self.file_loc_prefix_label.setVisible(False)
+        
+        self.file_locale_combo = QComboBox()
+        self.file_locale_combo.view().setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.file_locale_combo.setStyleSheet("""
+            QComboBox {
+                background-color: #3a3a3a;
+                color: #ff9900;
+                font-weight: bold;
+                border: 1px solid #777;
+                border-radius: 4px;
+                padding: 2px 10px;
+                min-width: 50px;
+                max-width: 100px;
+                combobox-popup: 0;
+            }
+            QComboBox:focus {
+                border: 1px solid #ff9900;
+            }
+            QComboBox::drop-down {
+                border: none;
+                background-color: transparent;
+                width: 20px;
+            }
+            QComboBox::down-arrow {
+                image: none;
+                border-left: 5px solid transparent;
+                border-right: 5px solid transparent;
+                border-top: 5px solid #ff9900;
+                margin-right: 5px;
+            }
+            QComboBox QAbstractItemView {
+                background-color: #3a3a3a;
+                color: #ffffff;
+                selection-background-color: #ff9900;
+                selection-color: #000000;
+                border: 1px solid #ff9900;
+                outline: none;
+            }
+        """)
+        self.file_locale_combo.setCursor(Qt.PointingHandCursor)
+        self.file_locale_combo.setMaxVisibleItems(20)
+        self.file_locale_combo.currentIndexChanged.connect(self.change_miz_locale) # Используем тот же обработчик
+        self.file_locale_combo.setVisible(False)
+        if hasattr(self.file_locale_combo, 'view') and self.file_locale_combo.view():
+            self.file_locale_combo.view().installEventFilter(self)
+
+        self.file_delete_locale_btn = QPushButton()
+        self.file_delete_locale_btn.setFixedSize(70, 21)
+        self.file_delete_locale_btn.setCursor(Qt.PointingHandCursor)
+        self.file_delete_locale_btn.clicked.connect(self.confirm_delete_locale)
+        self.file_delete_locale_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #ffffff;
+                color: #000000;
+                border: none;
+                border-radius: 10px;
+                font-weight: bold;
+                font-size: 10px;
+                padding: 0px;
+            }
+            QPushButton:hover {
+                background-color: #c62828;
+                color: #ffffff;
+            }
+            QPushButton:pressed {
+                background-color: #b71c1c;
+            }
+        """)
+        self.file_delete_locale_btn.setVisible(False)
+        
+        selected_file_layout.addWidget(self.file_info_container)
+        selected_file_layout.addWidget(self.file_loc_prefix_label)
+        selected_file_layout.addWidget(self.file_locale_combo)
+        selected_file_layout.addWidget(self.file_delete_locale_btn)
+        selected_file_layout.addStretch()
+        
+        self.selected_file_label.setVisible(False)
+        
+        # Контейнер для меток .miz файла (Белый префикс + Оранжевое имя + Белая локализация + Оранжевая папка)
+        self.selected_miz_label = QWidget()
+        selected_miz_inner_layout = QHBoxLayout(self.selected_miz_label)
+        selected_miz_inner_layout.setContentsMargins(0, 0, 0, 0)
+        selected_miz_inner_layout.setSpacing(5)
+        
+        # Контейнер для "Миссия:" и названия файла для единого тултипа
+        self.mission_info_container = QWidget()
+        self.mission_info_container.setStyleSheet("background: transparent; border: none;")
+        mission_info_layout = QHBoxLayout(self.mission_info_container)
+        mission_info_layout.setContentsMargins(0, 0, 0, 0)
+        mission_info_layout.setSpacing(5)
+ 
+        self.mission_prefix_label = QLabel()
+        self.mission_prefix_label.setStyleSheet("color: white; font-weight: bold; background: transparent; border: none;")
+        
+        self.mission_name_label = QLabel()
+        self.mission_name_label.setStyleSheet("color: #ff9900; font-weight: bold; background: transparent; border: none;")
+        
+        mission_info_layout.addWidget(self.mission_prefix_label)
+        mission_info_layout.addWidget(self.mission_name_label)
+ 
+        self.loc_prefix_label = QLabel()
+        self.loc_prefix_label.setStyleSheet("color: white; font-weight: bold; background: transparent; border: none;")
+        
+        self.miz_locale_combo = QComboBox()
+        self.miz_locale_combo.view().setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.miz_locale_combo.setStyleSheet("""
+            QComboBox {
+                background-color: #3a3a3a;
+                color: #ff9900;
+                font-weight: bold;
+                border: 1px solid #777;
+                border-radius: 4px;
+                padding: 2px 10px;
+                min-width: 50px;
+                max-width: 100px;
+                combobox-popup: 0;
+            }
+            QComboBox:focus {
+                border: 1px solid #ff9900;
+            }
+            QComboBox::drop-down {
+                border: none;
+                background-color: transparent;
+                width: 20px;
+            }
+            QComboBox::down-arrow {
+                image: none;
+                border-left: 5px solid transparent;
+                border-right: 5px solid transparent;
+                border-top: 5px solid #ff9900;
+                margin-right: 5px;
+            }
+            QComboBox QAbstractItemView {
+                background-color: #3a3a3a;
+                color: #ffffff;
+                selection-background-color: #ff9900;
+                selection-color: #000000;
+                border: 1px solid #ff9900;
+                outline: none;
+            }
+        """)
+        self.miz_locale_combo.setCursor(Qt.PointingHandCursor)
+        self.miz_locale_combo.setMaxVisibleItems(20)
+        self.miz_locale_combo.currentIndexChanged.connect(self.change_miz_locale)
+        # Устанавливаем фильтр событий на VIEW комбобокса для отслеживания его скрытия (схлопывания)
+        if hasattr(self.miz_locale_combo, 'view') and self.miz_locale_combo.view():
+            self.miz_locale_combo.view().installEventFilter(self)
+        
+        selected_miz_inner_layout.addWidget(self.mission_info_container)
+        selected_miz_inner_layout.addWidget(self.loc_prefix_label)
+        selected_miz_inner_layout.addWidget(self.miz_locale_combo)
+        
+        # Кнопка удаления локали
+        self.delete_locale_btn = QPushButton()
+        self.delete_locale_btn.setFixedSize(70, 21) # Высота 21px, ширина чуть увеличена для текста
+        self.delete_locale_btn.setCursor(Qt.PointingHandCursor)
+        self.delete_locale_btn.clicked.connect(self.confirm_delete_locale)
+        self.delete_locale_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #ffffff;
+                color: #000000;
+                border: none;
+                border-radius: 10px;
+                font-weight: bold;
+                font-size: 10px;
+                padding: 0px;
+            }
+            QPushButton:hover {
+                background-color: #c62828;
+                color: #ffffff;
+            }
+            QPushButton:pressed {
+                background-color: #b71c1c;
+            }
+        """)
+        selected_miz_inner_layout.addWidget(self.delete_locale_btn, 0, Qt.AlignVCenter)
+        selected_miz_inner_layout.addStretch()
+        
+        self.selected_miz_label.setVisible(False)
+        
+        # Добавляем кнопку и оба инфо-виджета в единый контейнер
+        unified_open_layout.addWidget(self.open_unified_btn)
+        unified_open_layout.addWidget(self.selected_file_label)
+        unified_open_layout.addWidget(self.selected_miz_label)
+        unified_open_layout.addStretch()
+        
+        # Инициализируем меню с текущим языком
+        self.update_recent_menu()
+        
+        # Кнопка "Сохранить перевод"
+        self.save_file_btn = QPushButton('💾 Сохранить перевод')
+        self.save_file_btn.clicked.connect(self.save_file)
+        self.save_file_btn.setEnabled(False)
+        self.save_file_btn.setStyleSheet('''
+            QPushButton {
+                background-color: #ff9900;
+                color: #000000;
+                border: none;
+                padding: 0px 16px;
+                border-radius: 17px;
+                font-weight: bold;
+                font-size: 12px;
+            }
+            QPushButton:hover {
+                background-color: #e68a00;
+            }
+            QPushButton:pressed {
+                background-color: #cc7a00;
+            }
+        ''')
+        
+        # Добавляем контейнеры в layout
+        buttons_layout.addWidget(unified_open_container)
+        buttons_layout.addWidget(self.save_file_btn)
+        
+        # ПАРАМЕТРЫ ДЛЯ КНОПОК «ОТКРЫТЬ» И «СОХРАНИТЬ» (меняйте эти числа!)
+        self.main_btn_height = 34  # Высота кнопок
+        self.main_btn_radius = 17  # Радиус (для пилюли = половина высоты)
+
+        # Подгоняем размеры кнопок для одинаковой ширины
+        button_policy = QSizePolicy(QSizePolicy.Minimum, QSizePolicy.Fixed)
+        # Фиксируем высоту, чтобы все кнопки выглядели одинаково (скруглённые)
+        for button in [self.open_unified_btn, self.save_file_btn]:
+            button.setFixedHeight(self.main_btn_height)
+            button.setSizePolicy(button_policy)
+        
+        # Увеличиваем минимальную ширину для стабильного размера при переключении языков
+        min_button_width = 280  # Увеличено с 250 для учета английского текста
+        for button in [self.open_unified_btn, self.save_file_btn]:
+            button.setMinimumWidth(min_button_width)
+            button.setMaximumWidth(min_button_width)  # Делаем максимум равным минимуму для фиксации
+        
+        # Сохраняем ширину для использования при переключении языков
+        self.button_fixed_width = min_button_width
+        
+        left_layout.addWidget(buttons_container)
+        left_layout.addStretch()
+        
+        # ПРАВАЯ ЧАСТЬ: кнопка выхода, логотип и статистика
+        right_panel = QWidget()
+        right_panel.setStyleSheet("background-color: transparent; border: none;")
+        right_panel.setMinimumWidth(550)  # Увеличено для размещения кнопок и лого в один ряд
+        right_layout = QVBoxLayout(right_panel)
+        right_layout.setContentsMargins(0, 0, 0, 0)
+        right_layout.setSpacing(0) # Убираем отступ между Exit и нижним рядом
+        right_layout.setAlignment(Qt.AlignTop | Qt.AlignRight)
+
+        # Кнопка выхода над логотипом
+        self.exit_container = QWidget()
+        self.exit_container.setStyleSheet("background-color: transparent; border: none;")
+        self.exit_container.setFixedSize(147, 33)  # 97 + 50 = 147
+        exit_layout = QHBoxLayout(self.exit_container)
+        exit_layout.setContentsMargins(0, 0, 0, 0)
+        exit_layout.setSpacing(0)
+        
+        # Левая часть (EXIT.png) - изначально пустая, появится только при наведении
+        self.exit_left_label = QLabel()
+        self.exit_left_label.setFixedSize(97, 33)
+        self.exit_left_label.setStyleSheet("background-color: transparent;")
+        # Отключаем события мыши для левой части
+        self.exit_left_label.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+        
+        # Правая часть (кнопка Exit1.png/Exit2.png) - кликабельная часть
+        self.exit_right_label = QLabel()
+        self.exit_right_label.setFixedSize(50, 33)
+        self.exit_right_label.setCursor(Qt.PointingHandCursor)
+        
+        # Загружаем изображения для кнопки выхода
+        exit1_path = resource_path("Exit1.png")
+        exit2_path = resource_path("Exit2.png")
+        exit_gif_path = resource_path("EXIT.gif")
+        
+        # Правая кнопка (Exit1.png)
+        if os.path.exists(exit1_path):
+            self.exit1_pixmap = QPixmap(exit1_path)
+            self.exit_right_label.setPixmap(self.exit1_pixmap)
+            self.exit_right_label.setScaledContents(True)
+        
+        if os.path.exists(exit2_path):
+            self.exit2_pixmap = QPixmap(exit2_path)
+            
+        # Настройка GIF анимации (EXIT.gif)
+        if os.path.exists(exit_gif_path):
+            self.exit_movie = QMovie(exit_gif_path)
+            # Отключаем зацикливание, если оно прописано в файле
+            self.exit_movie.setCacheMode(QMovie.CacheAll)
+            self.exit_left_label.setMovie(self.exit_movie)
+            # Переходим к первому кадру и останавливаемся
+            if self.exit_movie.jumpToFrame(0):
+                self.exit_movie.stop()
+        
+        # Кнопка сворачивания (down.gif) поверх левой части
+        self.down_label = QLabel(self.exit_container)
+        self.down_label.setFixedSize(33, 33)
+        self.down_label.move(63, 0)  # Сдвигаем на 60px вправо от левого края контейнера
+        self.down_label.setCursor(Qt.PointingHandCursor)
+        self.down_label.setStyleSheet("background-color: transparent;")
+        
+        down_gif_path = resource_path("down.gif")
+        if os.path.exists(down_gif_path):
+            self.down_movie = QMovie(down_gif_path)
+            self.down_movie.setCacheMode(QMovie.CacheAll)
+            self.down_label.setMovie(self.down_movie)
+            if self.down_movie.jumpToFrame(0):
+                self.down_movie.stop()
+                
+            # Настройка таймера для кастомной анимации (5 FPS = 200 ms)
+            self.down_anim_timer = QTimer(self)
+            self.down_anim_timer.setInterval(200)
+            self.down_current_frame = 0
+            self.down_anim_timer.timeout.connect(self._animate_down_button)
+        
+        exit_layout.addWidget(self.exit_left_label)
+        exit_layout.addWidget(self.exit_right_label)
+        
+        # Поднимаем down_label поверх всех
+        self.down_label.raise_()
+        
+        # Обработчики событий
+        self.exit_right_label.installEventFilter(self)
+        self.down_label.installEventFilter(self)
+        
+        right_layout.addWidget(self.exit_container, 0, Qt.AlignRight)
+        
+        # ПАРАМЕТР ДЛЯ ВСЕГО БЛОКА (Кнопки + Лого): Вертикальный отступ (меняйте это число!)
+        self.header_right_block_offset = 6 
+
+        # Контейнер для кнопок и логотипа в один ряд
+        header_right_row = QWidget()
+        header_right_row.setStyleSheet("background-color: transparent; border: none;")
+        header_right_row_layout = QHBoxLayout(header_right_row)
+        header_right_row_layout.setContentsMargins(0, self.header_right_block_offset, 0, 0)
+        header_right_row_layout.setSpacing(10)
+        header_right_row_layout.setAlignment(Qt.AlignRight | Qt.AlignTop)
+
+        # Логотип (теперь часть горизонтального ряда)
+        self.logo_label = QLabel()
+        self.logo_label.setAlignment(Qt.AlignRight | Qt.AlignTop)
+        self.logo_label.setStyleSheet("background-color: transparent; border: none; padding: 0;")
+        
+        # Загружаем логотип из папки с программой (если есть)
+        logo_path = resource_path("DCSTT_logo.png")
+        if os.path.exists(logo_path):
+            self.logo_pixmap_original = QPixmap(logo_path)
+        else:
+            # Если файла нет — просто не показываем логотип
+            self.logo_label.setVisible(False)
+        
+        # Делаем логотип кликабельным и добавляем тултип
+        self.logo_label.setCursor(Qt.PointingHandCursor)
+        self.logo_label.installEventFilter(self)
+        self.register_custom_tooltip(self.logo_label, get_translation(self.current_language, 'tooltip_about_program'), side='cursor')
+        
+        # Кнопки (теперь слева от логотипа в том же ряду, но одна над другой)
+        right_buttons_container = QWidget()
+        right_buttons_container.setStyleSheet("background-color: transparent; border: none;")
+        right_buttons_layout = QVBoxLayout(right_buttons_container)
+        right_buttons_layout.setContentsMargins(0, 0, 0, 0)
+        right_buttons_layout.setSpacing(5) # Отступ между кнопками по вертикали
+        right_buttons_layout.setAlignment(Qt.AlignRight | Qt.AlignTop)
+        
+        # Кнопка "Инструкции"
+        self.instructions_btn = QPushButton(get_translation(self.current_language, 'instructions_btn'))
+        self.instructions_btn.setCursor(Qt.PointingHandCursor)
+        self.instructions_btn.clicked.connect(self.show_instructions)
+        self.instructions_btn.setStyleSheet('''
+            QPushButton {
+                background-color: #ff9900;
+                color: #000000;
+                border: none;
+                padding: 0px 12px;
+                border-radius: 13px;
+                font-weight: bold;
+                font-size: 11px;
+            }
+            QPushButton:hover {
+                background-color: #e68a00;
+            }
+            QPushButton:pressed {
+                background-color: #cc7a00;
+            }
+        ''')
+        
+        # Кнопка "Управление контекстом для ИИ"
+        self.ai_context_mgmt_btn = QPushButton(get_translation(self.current_language, 'ai_context_mgmt_btn'))
+        self.ai_context_mgmt_btn.setCursor(Qt.PointingHandCursor)
+        self.ai_context_mgmt_btn.clicked.connect(self.show_ai_context_window)
+        self.ai_context_mgmt_btn.setStyleSheet('''
+            QPushButton {
+                background-color: #ff9900;
+                color: #000000;
+                border: none;
+                padding: 0px 12px;
+                border-radius: 13px;
+                font-weight: bold;
+                font-size: 11px;
+            }
+            QPushButton:hover {
+                background-color: #e68a00;
+            }
+            QPushButton:pressed {
+                background-color: #cc7a00;
+            }
+        ''')
+        
+        # Устанавливаем ширину кнопок (фиксированная для предотвращения сжатия)
+        self.instructions_btn_width = 215 # <--- ШИРИНА КНОПКИ "ИНСТРУКЦИЯ"
+        self.ai_context_btn_width = 215   # <--- ШИРИНА КНОПКИ "КОНТЕКСТ"
+
+        self.instructions_btn.setFixedWidth(self.instructions_btn_width)
+        self.ai_context_mgmt_btn.setFixedWidth(self.ai_context_btn_width)
+        self.instructions_btn.setFixedHeight(26)
+        self.ai_context_mgmt_btn.setFixedHeight(26)
+        
+        # Добавляем кнопки одну над другой
+        right_buttons_layout.addWidget(self.instructions_btn)
+        right_buttons_layout.addWidget(self.ai_context_mgmt_btn)
+        
+        # Собираем ряд: блок кнопок, затем логотип
+        header_right_row_layout.addWidget(right_buttons_container)
+        header_right_row_layout.addWidget(self.logo_label)
+        
+        right_layout.addWidget(header_right_row, 0, Qt.AlignRight)
+        right_layout.addStretch()
+        
+        # ЦЕНТРАЛЬНАЯ ПАНЕЛЬ: заголовок "DCS Translation TOOL v1.01" - АБСОЛЮТНОЕ ПОЗИЦИОНИРОВАНИЕ
+        self.center_panel = QWidget(self)
+        self.center_panel.setAttribute(Qt.WA_TranslucentBackground)
+        
+        # Параметр для настройки вертикальной позиции (меняйте это значение!)
+        self.title_vertical_offset = 14  # <-- МЕНЯЙТЕ ЭТО ЧИСЛО ДЛЯ ВЕРТИКАЛЬНОЙ ПОЗИЦИИ
+        
+        center_layout = QVBoxLayout(self.center_panel)
+        center_layout.setContentsMargins(0, 0, 0, 0)
+        center_layout.setSpacing(3)
+        center_layout.setAlignment(Qt.AlignCenter)
+        
+        # Контейнер для текста заголовка
+        title_container = QWidget()
+        title_container.setStyleSheet('background-color: transparent; border: none;')
+        title_container_layout = QHBoxLayout(title_container)
+        title_container_layout.setContentsMargins(0, 0, 0, 0)
+        title_container_layout.setSpacing(3)
+        
+        # Список шрифтов в порядке приоритета для использования
+        font_list = ['Sylfaen', 'Segoe UI', 'Arial', 'Calibri', 'Times New Roman']
+        
+        # "DCS Translation TOOL"
+        app_title = QLabel('DCS Translation TOOL')
+        app_title.setStyleSheet('''
+            color: #ff9900;
+            font-size: 18px;
+            font-weight: bold;
+            background-color: transparent;
+            border: none;
+        ''')
+        # Используем первый доступный шрифт из списка
+        app_font = QFont()
+        for font_name in font_list:
+            app_font = QFont(font_name, 18)
+            app_font.setStyleHint(QFont.SansSerif)
+            if QFontInfo(app_font).family() == font_name:
+                break
+        app_title.setFont(app_font)
+        
+        # Версия программы - берется из VersionInfo.CURRENT
+        version_title = QLabel(f'v{VersionInfo.CURRENT}')
+        version_title.setStyleSheet('''
+            color: #cccccc;
+            font-size: 12px;
+            font-weight: bold;
+            background-color: transparent;
+            border: none;
+        ''')
+        # Используем первый доступный шрифт из списка
+        version_font = QFont()
+        for font_name in font_list:
+            version_font = QFont(font_name, 12)
+            version_font.setStyleHint(QFont.SansSerif)
+            if QFontInfo(version_font).family() == font_name:
+                break
+        version_title.setFont(version_font)
+        # Выравниваем по нижней линии
+        version_title.setAlignment(Qt.AlignBottom)
+        
+        title_container_layout.addWidget(app_title)
+        title_container_layout.addWidget(version_title)
+        
+        # Центрируем контейнер
+        title_layout_center = QHBoxLayout()
+        title_layout_center.addStretch()
+        title_layout_center.addWidget(title_container)
+        title_layout_center.addStretch()
+        
+        center_layout.addLayout(title_layout_center)
+        
+        # [LINE_WIDGET_REPLACEMENT]
+        # Создаем новый виджет линии с абсолютным позиционированием
+        self.abs_separator = LineWidget(self)
+        self.abs_separator.setAttribute(Qt.WA_TranslucentBackground)
+        self.abs_separator.setFixedHeight(2)  # Высота виджета для рисования
+        
+        # Параметры линии (меняйте эти значения для настройки)
+        self.line_vertical_offset = 41  # Вертикальная позиция линии (y-координата)
+        self.line_side_margin = 15      # Отступ линии от краев окна (с обеих сторон)
+        
+        # Инициализация позиции заголовка и линии
+        self._update_title_position()
+        self._update_line_geometry()
+        
+        # Нижняя строка - кнопки (слева) и right_panel (справа)
+        bottom_row_layout = QHBoxLayout()
+        bottom_row_layout.setContentsMargins(0, 0, 0, 0)
+        bottom_row_layout.setSpacing(10)
+        
+        bottom_row_layout.addWidget(left_panel)
+        bottom_row_layout.addStretch()
+        bottom_row_layout.addWidget(right_panel)
+        
+        # Добавляем только нижнюю строку в top_panel_layout
+        top_panel_layout.addLayout(bottom_row_layout)
+        
+        main_layout.addLayout(top_panel_layout)
+        
+        # Только после создания всех виджетов обновляем логотип
+        self._update_logo_pixmap()
+        
+        # Обновляем позицию заголовка (абсолютное позиционирование)
+        self._update_title_position()
+        self._update_line_geometry()
+
+    def _update_line_geometry(self):
+        """Обновляет геометрию абсолютной линии"""
+        if hasattr(self, 'abs_separator'):
+            line_width = self.width() - (self.line_side_margin * 2)
+            self.abs_separator.setGeometry(self.line_side_margin, self.line_vertical_offset, line_width, 2)
+            self.abs_separator.lower() # Линия всегда под всеми кнопками
+            self.abs_separator.update()
+    
+    def _update_logo_pixmap(self):
+        """Обновляет масштаб логотипа (только уменьшение, без апскейла)"""
+        # Проверяем, существуют ли необходимые атрибуты
+        if not hasattr(self, 'logo_label'):
+            return
+            
+        if self.logo_pixmap_original is None or self.logo_pixmap_original.isNull():
+            self.logo_label.setVisible(False)
+            return
+
+        # Ширина примерно как у надписи "Строк для перевода: ..."
+        target_text = "Строк для перевода: 000"
+        font_metrics = self.logo_label.fontMetrics()
+        target_width = max(140, font_metrics.horizontalAdvance(target_text))
+
+        # Не увеличиваем картинку выше её исходной ширины
+        width = min(target_width, self.logo_pixmap_original.width())
+        scaled = self.logo_pixmap_original.scaledToWidth(width, Qt.SmoothTransformation)
+
+        self.logo_label.setPixmap(scaled)
+        # Устанавливаем ширину точно по картинке, а высоту с запасом для margin-top
+        # Это предотвращает обрезку нижней части логотипа при смещении вниз
+        self.logo_label.setFixedSize(scaled.width(), scaled.height() + 3) 
+        self.logo_label.setVisible(True)
+    
+    def changeEvent(self, event):
+        """Очищенный перехватчик событий. Хак с мышью больше не нужен, 
+        так как окно теперь сворачивается нативной командой Windows."""
+        if event.type() == QEvent.WindowStateChange:
+            if not self.isMinimized():
+                self.activateWindow()
+                self.raise_()
+                self.setFocus()
+                
+        super().changeEvent(event)
+
+    def _animate_down_button(self):
+        """Анимация минимизации: 5 кадров в цикле"""
+        if hasattr(self, 'down_movie'):
+            # Всего 5 кадров (0, 1, 2, 3, 4)
+            self.down_current_frame = (self.down_current_frame + 1) % 5
+            self.down_movie.jumpToFrame(self.down_current_frame)
+
+    def eventFilter(self, obj, event):
+        """Глобальный обработчик событий (exit button, slash warning tooltip и подавление пустых системных тултипов)"""
+        # Мгновенное скрытие подсказки недавних файлов при движении мыши ИЛИ уводе мыши с меню
+        if obj == getattr(self, 'recent_menu', None) and event.type() in (QEvent.MouseMove, QEvent.Leave):
+            self.tooltip_timer.stop()
+            self._pending_tooltip_data = None
+            if hasattr(self, 'custom_tooltip'):
+                self.custom_tooltip.hide()
+            return False
+
+        # Обработка клика по пункту "Комментарий" (чтобы открывалось окно, несмотря на наличие подменю)
+        if event.type() == QEvent.MouseButtonRelease and isinstance(obj, QMenu):
+            act = obj.actionAt(event.pos())
+            if act and hasattr(act, '_bookmark_comment_data'):
+                key, lbl, mw = act._bookmark_comment_data
+                obj.close()
+                self._edit_bookmark_comment(key, lbl, mw)
+                return True
+
+        # [FIX] Снимаем оранжевую подсветку аудио при клике в любом месте
+        if event.type() == QEvent.MouseButtonPress:
+            if getattr(self, 'highlighted_audio_key', None):
+                self.clear_audio_highlight()
+
+        # Подавляем системные тултипы, у которых нет текста — это устраняет чёрную полосу
+        if event.type() == QEvent.ToolTip:
+            try:
+                # Безопасная проверка: если объект удален, Qt выбросит RuntimeError или sip выбросит ошибку
+                if not obj or obj is None:
+                    return False
+                tip = obj.toolTip() if hasattr(obj, 'toolTip') else None
+                if not tip or not str(tip).strip():
+                    return True
+            except (RuntimeError, AttributeError):
+                return True
+            except Exception:
+                return True
+
+        # Обработка зарегистрированных виджетов с кастомными тултипами
+        if hasattr(self, '_custom_tooltip_map') and obj in self._custom_tooltip_map:
+            try:
+                data = self._custom_tooltip_map[obj]
+                text = data['text'] if isinstance(data, dict) else data
+                side = data['side'] if isinstance(data, dict) else 'bottom'
+                
+                if event.type() == QEvent.Enter:
+                    if text:
+                        # Откладываем показ тултипа на 500мс
+                        if side == 'cursor':
+                            from PyQt5.QtGui import QCursor
+                            self._pending_tooltip_data = (text, obj, QCursor.pos())
+                        else:
+                            self._pending_tooltip_data = (text, obj, side)
+                        self.tooltip_timer.start(500)
+                    return False
+                elif event.type() == QEvent.Leave:
+                    # Отменяем показ и прячем текущий
+                    self.tooltip_timer.stop()
+                    self._pending_tooltip_data = None
+                    if hasattr(self, 'custom_tooltip'):
+                        self.custom_tooltip.hide()
+                    return False
+                elif event.type() == QEvent.MouseMove:
+                    # Мгновенное скрытие при начале движения (как в недавних файлах)
+                    self.tooltip_timer.stop()
+                    self._pending_tooltip_data = None
+                    if hasattr(self, 'custom_tooltip'):
+                        self.custom_tooltip.hide()
+                    return False
+            except Exception:
+                return False
+
+        if hasattr(self, 'exit_right_label') and obj == self.exit_right_label:
+            if event.type() == QEvent.Enter:
+                # При наведении: меняем изображение на Exit2.png и запускаем анимацию
+                if hasattr(self, 'exit2_pixmap'):
+                    self.exit_right_label.setPixmap(self.exit2_pixmap)
+                if hasattr(self, 'exit_movie'):
+                    self.exit_movie.start()
+                # Принудительно поднимаем контейнер, чтобы исключить перекрытие
+                self.exit_container.raise_()
+                # Кнопка сворачивания тоже должна остаться поверх
+                if hasattr(self, 'down_label'):
+                    self.down_label.raise_()
+                return True
+            elif event.type() == QEvent.Leave:
+                # При уходе: возвращаем Exit1.png и сбрасываем гифку в начало (кадр 0)
+                if hasattr(self, 'exit1_pixmap'):
+                    self.exit_right_label.setPixmap(self.exit1_pixmap)
+                if hasattr(self, 'exit_movie'):
+                    self.exit_movie.stop()
+                    self.exit_movie.jumpToFrame(0)
+                return True
+            elif event.type() == QEvent.MouseButtonPress:
+                if event.button() == Qt.LeftButton:
+                    self.close()
+                    return True
+
+        if hasattr(self, 'down_label') and obj == self.down_label:
+            if event.type() == QEvent.Enter:
+                if hasattr(self, 'down_anim_timer'):
+                    self.down_current_frame = 0
+                    if hasattr(self, 'down_movie'):
+                        self.down_movie.jumpToFrame(0)
+                    self.down_anim_timer.start()
+                return True
+            elif event.type() == QEvent.Leave:
+                if hasattr(self, 'down_anim_timer'):
+                    self.down_anim_timer.stop()
+                    self.down_current_frame = 0
+                if hasattr(self, 'down_movie'):
+                    self.down_movie.jumpToFrame(0)
+                return True
+            elif event.type() == QEvent.MouseButtonRelease:
+                if event.button() == Qt.LeftButton:
+                    if hasattr(self, 'down_anim_timer'):
+                        self.down_anim_timer.stop()
+                        self.down_current_frame = 0
+                    if hasattr(self, 'down_movie'):
+                        self.down_movie.jumpToFrame(0)
+                    # Откладываем сворачивание на 0 мс. Это позволяет Qt благополучно завершить
+                    # обработку события отпускания мыши (Release).
+                    QTimer.singleShot(0, self.showMinimized)
+                    return True
+        
+        # Обработка закрытия (схлопывания) выпадающего списка локалей
+        try:
+            is_miz_view = hasattr(self, 'miz_locale_combo') and self.miz_locale_combo is not None and obj == self.miz_locale_combo.view()
+            is_file_view = hasattr(self, 'file_locale_combo') and self.file_locale_combo is not None and obj == self.file_locale_combo.view()
+        except RuntimeError:
+            return False # Объект удален
+        
+        if (is_miz_view or is_file_view) and event.type() == QEvent.Hide:
+            active_combo = self.miz_locale_combo if is_miz_view else self.file_locale_combo
+            
+            def reset_combo_if_needed(combo=active_combo):
+                # ПРОВЕРКИ SAFETY: не сбрасываем, если:
+                # 1. Идет активное переключение локали
+                # 2. Мы как раз сейчас раскрываем плюс
+                # 3. Список ВИДИМ (значит showPopup() сработал сразу после Hide)
+                try:
+                    if not getattr(self, 'is_switching_locale', False) and \
+                       not getattr(self, 'is_expanding_plus', False) and \
+                       not combo.view().isVisible():
+                        
+                        has_plus = False
+                        for i in range(combo.count()):
+                            if combo.itemText(i).startswith("+"):
+                                has_plus = True
+                                break
+                        if has_plus:
+                            print(f"DEBUG: Resetting locale combo {'Row1' if is_file_view else 'Row2'} to compact mode after hide")
+                            self.update_miz_locale_combo(show_all=False)
+                except (RuntimeError, AttributeError):
+                    pass
+            QTimer.singleShot(150, reset_combo_if_needed)
+
+        # Обработка клика по логотипу — открытие окна "О программе"
+        if hasattr(self, 'logo_label') and obj == self.logo_label:
+            if event.type() == QEvent.MouseButtonPress:
+                if event.button() == Qt.LeftButton:
+                    self.show_about_window()
+                    return True
+
+        # Обработка поиска и замены
+        if hasattr(self, 'search_input') and obj == self.search_input:
+            if event.type() == QEvent.FocusIn:
+                QTimer.singleShot(0, self.search_input.selectAll)
+            elif event.type() == QEvent.KeyPress:
+                if event.key() == Qt.Key_Escape:
+                    self.search_input.clear()
+                    return True
+        
+        if hasattr(self, 'search_label') and obj == self.search_label:
+            if event.type() == QEvent.MouseButtonPress:
+                if event.button() in (Qt.LeftButton, Qt.RightButton):
+                    if self.search_popup.isVisible():
+                        self.search_popup.hide()
+                    else:
+                        # Если окно было закрыто только что (меньше 100мс назад), игнорируем клик,
+                        # так как он скорее всего и был причиной закрытия (click-outside).
+                        if time.time() - getattr(self, '_search_popup_hide_time', 0) > 0.1:
+                            self.search_popup.update_from_parent()
+                            # Показывать НАД меткой, чтобы не вылезало вниз
+                            pos = self.search_label.mapToGlobal(QPoint(0, -self.search_popup.height()))
+                            self.search_popup.move(pos)
+                            self.search_popup.show()
+                            # Принудительно ставим оранжевый цвет, пока окно открыто
+                            self.search_label.setStyleSheet("color: #ff9900; margin-left: 20px;")
+                    return True
+            elif event.type() == QEvent.Enter:
+                self.search_label.setStyleSheet("color: #ff9900; margin-left: 20px;")
+            elif event.type() == QEvent.Leave:
+                # Возвращаем серый только если окно НЕ открыто
+                if not self.search_popup.isVisible():
+                    self.search_label.setStyleSheet("color: #cccccc; margin-left: 20px;")
+        
+        if hasattr(self, 'replace_input') and obj == self.replace_input:
+            if event.type() == QEvent.FocusIn:
+                QTimer.singleShot(0, self.replace_input.selectAll)
+            elif event.type() == QEvent.KeyPress:
+                if event.key() == Qt.Key_Escape:
+                    self.replace_input.clear()
+                    return True
+
+        return super().eventFilter(obj, event)
+
+    def on_search_popup_hidden(self):
+        """Вызывается при закрытии окна настроек поиска (уведомление от SearchPopup)"""
+        self._search_popup_hide_time = time.time()
+        # Возвращаем серый цвет, если мышь не над меткой (подхватит hover если надо)
+        if hasattr(self, 'search_label') and not self.search_label.underMouse():
+            self.search_label.setStyleSheet("color: #cccccc; margin-left: 20px;")
+    
+    def show_about_window(self):
+        """Показывает окно 'Об авторе'"""
+        try:
+            print("DEBUG: Opening About Window...")
+            about = AboutWindow(self)
+            about.exec_()
+        except Exception as e:
+            msg = f"Ошибка открытия окна 'О программе': {str(e)}"
+            print(f"CRASH: {msg}")
+            ErrorLogger.log_error("ABOUT_OPEN", msg)
+            self.show_custom_dialog("Ошибка", msg, "error")
+
+    def show_instructions(self):
+        """Показывает окно инструкций"""
+        try:
+            dialog = InstructionsWindow(self)
+            dialog.exec_()
+        except Exception as e:
+            ErrorLogger.log_error('UI', f'Ошибка при открытии окна инструкций: {e}')
+
+    def show_ai_context_window(self):
+        """Показывает окно управления контекстом ИИ"""
+        try:
+            dialog = AIContextWindow(self)
+            # Передаем текущие значения контекста в окно
+            dialog.context_1 = self.ai_context_1
+            dialog.context_2 = self.ai_context_2
+            dialog.context_lang_1 = self.ai_context_lang_1
+            dialog.load_data()
+            dialog.exec_()
+        except Exception as e:
+            ErrorLogger.log_error('UI', f'Ошибка при открытии окна контекста ИИ: {e}')
+
+    def save_ai_context_settings(self, context_1, context_2, lang_1=None):
+        """Сохраняет контекст ИИ в основные настройки приложения"""
+        self.ai_context_1 = context_1
+        self.ai_context_2 = context_2
+        if lang_1:
+            self.ai_context_lang_1 = lang_1
+        # Вызываем общее сохранение настроек
+        if hasattr(self, 'save_settings'):
+            self.save_settings()
+    
+    def setup_filter_group(self, main_layout):
+        """Настройка группы фильтров"""
+        self.filters_group = QGroupBox(get_translation(self.current_language, 'filters_group'))
+        # Уменьшили margin-top и padding-top еще сильнее
+        self.filters_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                border: 2px solid #555;
+                border-radius: 8px;
+                margin-top: 0px;
+                padding-top: 5px;
+                background-color: #505050;
+                color: #fff;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                top: 3px;
+                padding: 0 10px 0 10px;
+                color: #fff;
+                background-color: transparent;
+                border: none;
+            }
+        """)
+        filter_layout = QVBoxLayout()
+        filter_layout.setContentsMargins(10, 0, 15, 0)
+        
+        # Первая строка - стандартные фильтры с кнопкой "Фильтры по умолчанию"
+        filter_row1 = QHBoxLayout()
+        filter_row1.setSpacing(10)
+        
+        # Используем ToggleSwitch
+        self.filter_action_text = ToggleSwitch()
+        self.filter_action_text.setChecked(True)
+        self.filter_action_text.animation.finished.connect(self.apply_filters)
+        
+        self.filter_action_radio = ToggleSwitch()
+        self.filter_action_radio.setChecked(True)
+        self.filter_action_radio.animation.finished.connect(self.apply_filters)
+        
+        self.filter_description = ToggleSwitch()
+        self.filter_description.setChecked(True)
+        self.filter_description.animation.finished.connect(self.apply_filters)
+        
+        self.filter_subtitle = ToggleSwitch()
+        self.filter_subtitle.setChecked(True)
+        self.filter_subtitle.animation.finished.connect(self.apply_filters)
+        
+        self.filter_sortie = ToggleSwitch()
+        self.filter_sortie.setChecked(True)
+        self.filter_sortie.animation.finished.connect(self.apply_filters)
+        
+        self.filter_name = ToggleSwitch()
+        self.filter_name.setChecked(True)
+        self.filter_name.animation.finished.connect(self.apply_filters)
+        
+        # Создаем контейнеры для переключателей с подписями
+        def create_toggle_container(toggle, text):
+            container = QWidget()
+            container.setStyleSheet('background-color: #505050; border: none;')  # Добавили фон
+            layout = QHBoxLayout(container)
+            layout.setContentsMargins(0, 0, 0, 0)
+            layout.setSpacing(6)
+            layout.addWidget(toggle)
+            label = QLabel(text)
+            label.setStyleSheet('''
+                color: #ddd;
+                background-color: #505050;  /* Изменено с transparent на #505050 */
+                border: none;
+                padding: 0;
+            ''')
+            layout.addWidget(label)
+            return container, label
+        
+        container_at, self.label_filter_at = create_toggle_container(self.filter_action_text, "ActionText")
+        container_art, self.label_filter_art = create_toggle_container(self.filter_action_radio, "ActionRadioText")
+        container_desc, self.label_filter_desc = create_toggle_container(self.filter_description, "description")
+        container_sub, self.label_filter_sub = create_toggle_container(self.filter_subtitle, "subtitle")
+        container_sortie, self.label_filter_sortie = create_toggle_container(self.filter_sortie, "sortie")
+        container_name, self.label_filter_name = create_toggle_container(self.filter_name, get_translation(self.current_language, 'filter_name'))
+        
+        filter_row1.addWidget(container_at)
+        filter_row1.addWidget(container_art)
+        filter_row1.addWidget(container_desc)
+        filter_row1.addWidget(container_sub)
+        filter_row1.addWidget(container_sortie)
+        filter_row1.addWidget(container_name)
+        
+        # Новый тоггл: Показывать ключи с аудио (справа от btn_name)
+        self.filter_audio_keys_cb = ToggleSwitch()
+        # состояние по умолчанию — False (выключено)
+        self.filter_audio_keys_cb.setChecked(getattr(self, 'filter_audio_keys', False))
+        self.filter_audio_keys_cb.animation.finished.connect(self.apply_filters)
+
+        container_audio_keys, self.label_audio_keys = create_toggle_container(self.filter_audio_keys_cb,
+                                              get_translation(self.current_language, 'show_audio_keys_label'))
+        
+        filter_row1.addWidget(container_audio_keys)
+
+        # Растяжка перед тогглом в первой строке, чтобы прижать его к правому краю
+        filter_row1.addStretch()
+
+        # Тоггл: Пропускать пустые ключи (в конце первой строки)
+        self.filter_empty_keys_cb = ToggleSwitch()
+        # состояние по умолчанию — True (включено)
+        self.filter_empty_keys_cb.setChecked(getattr(self, 'filter_empty_keys', True))
+        self.filter_empty_keys_cb.animation.finished.connect(self.toggle_empty_keys_filter)
+
+        container_skip_keys, self.label_skip_empty_keys = create_toggle_container(self.filter_empty_keys_cb,
+                                              get_translation(self.current_language, 'skip_empty_keys_label'))
+        filter_row1.addWidget(container_skip_keys)
+        
+        # Кнопка "Фильтры по умолчанию" (Тепер над рядами фильтров, прижатая вправо)
+        self.default_filters_btn = QPushButton(get_translation(self.current_language, 'default_filters_btn'))
+        self.default_filters_btn.clicked.connect(self.set_default_filters)
+        self.default_filters_btn.setFixedHeight(21)
+        self.default_filters_btn.setStyleSheet('''
+            QPushButton {
+                background-color: #ff9900;
+                color: #000000;
+                border: none;
+                padding: 2px 10px;
+                border-radius: 10px;
+                font-weight: bold;
+                font-size: 10px;
+            }
+            QPushButton:hover {
+                background-color: #e68a00;
+            }
+            QPushButton:pressed {
+                background-color: #cc7a00;
+            }
+        ''')
+        
+        # Вычисляем фиксированную ширину на основе текста
+        if not hasattr(self, 'filter_btn_fixed_width'):
+            font_metrics = self.default_filters_btn.fontMetrics()
+            filter_btn_width = font_metrics.horizontalAdvance('Фильтры по умолчанию') + 40
+            self.filter_btn_fixed_width = filter_btn_width
+        
+        self.default_filters_btn.setMinimumWidth(self.filter_btn_fixed_width)
+        self.default_filters_btn.setMaximumWidth(self.filter_btn_fixed_width)
+        
+        # Создаем слой для кнопки сверху над фильтрами
+        top_btn_layout = QHBoxLayout()
+        top_btn_layout.setContentsMargins(0, 0, 0, 0)  # Отступ убран для компактности
+        top_btn_layout.addStretch()
+        top_btn_layout.addWidget(self.default_filters_btn)
+        
+        filter_layout.addLayout(top_btn_layout)
+        filter_layout.addLayout(filter_row1)
+        
+        # Вторая строка - произвольные фильтры
+        filter_row2 = QHBoxLayout()
+        filter_row2.setContentsMargins(0, 0, 0, 0)
+        filter_row2.setSpacing(5) # Вернули стандартный отступ 10
+        filter_row2.setAlignment(Qt.AlignLeft) # Принудительное выравнивание влево
+
+        self.additional_keys_label = QLabel(get_translation(self.current_language, 'additional_keys_label'))
+        self.additional_keys_label.setStyleSheet('''
+            color: #ddd;
+            background-color: #505050;  /* Изменено с transparent на #505050 */
+            border: none;
+        ''')
+        filter_row2.addWidget(self.additional_keys_label)
+        
+        # Создаем 3 произвольных фильтра
+        self.custom_filters = []
+        for i in range(3):
+            custom_widget = QWidget()
+            custom_widget.setStyleSheet('background-color: #505050; border: none;')  # Добавили фон
+            custom_layout = QHBoxLayout(custom_widget)
+            custom_layout.setContentsMargins(0, 0, 0, 0)
+            custom_layout.setSpacing(6) # Вернули 6
+            
+            # Используем ToggleSwitch
+            checkbox = ToggleSwitch()
+            checkbox.setFixedSize(30, 14)
+            checkbox.animation.finished.connect(self.apply_filters)
+            
+            line_edit = QLineEdit()
+            line_edit.setFixedWidth(100)
+            line_edit.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+            line_edit.setMaxLength(20)
+            placeholder = get_translation(self.current_language, 'custom_filter_placeholder', index=i+1)
+            line_edit.setPlaceholderText(placeholder)
+            line_edit.textChanged.connect(self.apply_filters)
+            line_edit.setStyleSheet('''
+                QLineEdit {
+                    background-color: #606060;
+                    color: #ddd;
+                    border: 1px solid #777;
+                    border-radius: 3px;
+                    padding: 2px 5px;
+                }
+                QLineEdit:focus {
+                    border-color: #ff9900;
+                }
+            ''')
+            
+            custom_layout.addWidget(checkbox)
+            custom_layout.addWidget(line_edit)
+            
+            self.custom_filters.append({
+                'checkbox': checkbox,
+                'line_edit': line_edit,
+                'widget': custom_widget
+            })
+            custom_widget.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+            filter_row2.addWidget(custom_widget)
+        
+        # Переключатель "Показывать все ключи"
+        self.show_all_keys_cb = ToggleSwitch()
+        self.show_all_keys_cb.setChecked(getattr(self, 'show_all_keys', False))
+        self.show_all_keys_cb.animation.finished.connect(self.toggle_show_all_keys)
+        
+        # Растяжка перед правой группой вторая строки — прижать правые тогглы к краю
+        filter_row2.addStretch()
+        container_all, self.label_show_all = create_toggle_container(self.show_all_keys_cb, 
+                        get_translation(self.current_language, 'show_all_keys_label'))
+        filter_row2.addSpacing(5) # Вернули 10
+        filter_row2.addWidget(container_all)
+        
+        # Пропускать пустые строки (Переместили ПЕРЕД addStretch)
+        filter_row2.addSpacing(5) # Вернули 15
+        self.filter_empty_cb = ToggleSwitch()
+        self.filter_empty_cb.setChecked(True)
+        self.filter_empty_cb.animation.finished.connect(self.toggle_empty_filter)
+        
+        empty_container = QWidget()
+        empty_container.setStyleSheet('background-color: #505050; border: none;')
+        empty_layout = QHBoxLayout(empty_container)
+        empty_layout.setContentsMargins(0, 0, 0, 0)
+        empty_layout.setSpacing(6)
+        empty_layout.addWidget(self.filter_empty_cb)
+        self.skip_empty_label = QLabel(get_translation(self.current_language, 'skip_empty_label'))
+        self.skip_empty_label.setStyleSheet('''
+            color: #ddd;
+            background-color: #505050;
+            border: none;
+        ''')
+        empty_layout.addWidget(self.skip_empty_label)
+        filter_row2.addWidget(empty_container)
+        filter_layout.addLayout(filter_row2)
+        
+        self.filters_group.setLayout(filter_layout)
+        
+        # [DYNAMIC_WIDTH] Ширина больше не фиксируется (930px), чтобы текст не обрезался при масштабировании.
+        # Добавлен отступ справа 15px в filter_layout.setContentsMargins
+        self.filters_group.setMinimumWidth(800) # Минимальная разумная ширина
+        self.filters_group.setMaximumWidth(16777215) # Снимаем ограничение
+        
+        main_layout.addWidget(self.filters_group)
+    
+    def set_default_filters(self):
+        """Устанавливает фильтры по умолчанию"""
+        # Устанавливаем стандартные фильтры
+        self.filter_action_text.setChecked(True)
+        self.filter_action_radio.setChecked(True)
+        self.filter_description.setChecked(True)
+        self.filter_subtitle.setChecked(True)
+        self.filter_sortie.setChecked(True)
+        self.filter_name.setChecked(True)
+        self.filter_empty_cb.setChecked(True)
+        # Сбрасываем новый тоггл пропуска пустых ключей в ВКЛ
+        if hasattr(self, 'filter_empty_keys_cb'):
+            self.filter_empty_keys_cb.setChecked(True)
+            
+        # Сбрасываем фильтр аудио ключей в ВЫКЛ
+        if hasattr(self, 'filter_audio_keys_cb'):
+            self.filter_audio_keys_cb.setChecked(False)
+        
+        # Отключаем "Показывать все ключи"
+        if hasattr(self, 'show_all_keys_cb'):
+            self.show_all_keys_cb.setChecked(False)
+        
+        # Отключаем произвольные фильтры
+        for custom_filter in self.custom_filters:
+            custom_filter['checkbox'].setChecked(False)
+            custom_filter['line_edit'].clear()
+        
+        # Обновляем интерфейс
+        self.filter_empty = True
+        self.filter_empty_keys = True
+        self.apply_filters()
+        
+        self.statusBar().showMessage(get_translation(self.current_language, 'status_default_filters'))
+    
+    def setup_translation_area(self, parent_container):
+        """Настройка основной области перевода"""
+        translation_frame = QFrame()
+        translation_frame.setFrameShape(QFrame.StyledPanel)
+        # Восстанавливаем полутемный фон для области перевода БЕЗ РАМКИ
+        translation_frame.setStyleSheet("background-color: #505050; border: none;")
+        translation_layout = QVBoxLayout(translation_frame)
+        translation_layout.setContentsMargins(0, 0, 0, 0)
+        translation_layout.setSpacing(0)
+        
+        # Разделитель для двух панелей (сделали атрибутом класса для сохранения размеров)
+        self.pane_splitter = CustomSplitter(Qt.Horizontal)
+        self.pane_splitter.setHandleWidth(4)
+        self.pane_splitter.setStyleSheet("background-color: transparent; border: none;")
+        
+        # Левая панель - оригинальный текст
+        left_widget = QWidget()
+        left_layout = QVBoxLayout(left_widget)
+        left_layout.setContentsMargins(5, 5, 5, 5)
+        left_layout.setSpacing(5)
+        
+        left_header = QHBoxLayout()
+        self.original_text_header_label = QLabel(get_translation(self.current_language, 'original_text_label'))
+        self.original_text_header_label.setStyleSheet('''
+            color: #ddd; 
+            font-weight: bold;
+            background-color: transparent;
+            border: none;
+        ''')
+        left_header.addWidget(self.original_text_header_label)
+        self.english_count_label = QLabel('0 строк')
+        self.english_count_label.setStyleSheet('''
+            color: #aaa;
+            background-color: transparent;
+            border: none;
+        ''')
+        left_header.addStretch()
+        left_header.addWidget(self.english_count_label)
+        left_layout.addLayout(left_header)
+        
+        self.original_text_all = NumberedTextEdit()
+        self.original_text_all.setReadOnly(True)
+        
+        # Добавили светло-серую рамку по умолчанию, оранжевую при фокусе
+        self.original_text_all.setStyleSheet('''
+            QPlainTextEdit {
+                color: #ffffff;
+                background-color: transparent;
+                border: 2px solid #777;
+                border-radius: 6px;
+            }
+            QPlainTextEdit:focus {
+                border: 2px solid #ff9900;
+                border-radius: 6px;
+            }
+            QPlainTextEdit::selection {
+                background-color: #ff9900;
+                color: #000000;
+            }
+            QMenu {
+                background-color: #3a3a3a;
+                color: #ffffff;
+                border: 1px solid #777;
+            }
+            QMenu::item {
+                padding: 4px 20px;
+                background-color: transparent;
+            }
+            QMenu::item:selected {
+                background-color: #ff9900;
+                color: #000000;
+            }
+            QMenu::item:disabled {
+                color: #808080;
+            }
+        ''')
+        
+        # Устанавливаем кастомный скроллбар
+        self.original_text_all.setVerticalScrollBar(CustomScrollBar())
+        self.original_text_all.setHorizontalScrollBar(CustomScrollBar())
+        
+        # Синхронизация видимости горизонтальных скроллбаров (чтобы высота вьюпортов всегда совпадала)
+        self.original_text_all.horizontalScrollBar().rangeChanged.connect(self._sync_horizontal_scrollbar_visibility)
+        
+        left_layout.addWidget(self.original_text_all, 1)
+        
+        # Кнопки левой панели
+        left_buttons = QHBoxLayout()
+        left_buttons.setContentsMargins(0, 5, 0, 0)
+        self.copy_all_btn = QPushButton('📋 Копировать весь текст')
+        self.copy_all_btn.clicked.connect(self.copy_all_english)
+        # Убрали tooltip для этой кнопки
+        # Высота кнопки примерно 32px (padding 8px сверху/снизу + высота текста ~16px)
+        # Половина высоты = 16px
+        self.copy_all_btn.setStyleSheet('''
+            QPushButton {
+                background-color: #ff9900;
+                color: #000000;
+                border: none;
+                padding: 8px 16px;
+                border-radius: 16px;
+                font-weight: bold;
+                font-size: 12px;
+            }
+            QPushButton:hover {
+                background-color: #e68a00;
+            }
+            QPushButton:pressed {
+                background-color: #cc7a00;
+            }
+        ''')
+        
+        self.show_keys_btn = QPushButton('🔑 Показать/скрыть ключи')
+        self.show_keys_btn.clicked.connect(self.toggle_keys_display)
+        self.show_keys_btn.setCheckable(True)
+        self.show_keys_btn.setStyleSheet('''
+            QPushButton {
+                background-color: #ff9900;
+                color: #000000;
+                border: none;
+                padding: 8px 16px;
+                border-radius: 16px;
+                font-weight: bold;
+                font-size: 12px;
+            }
+            QPushButton:hover {
+                background-color: #e68a00;
+            }
+            QPushButton:pressed {
+                background-color: #cc7a00;
+            }
+        ''')
+        
+        # Вычисляем фиксированные ширины на основе русского текста
+        if not hasattr(self, 'copy_btn_fixed_width'):
+            font_metrics = self.copy_all_btn.fontMetrics()
+            copy_width = font_metrics.horizontalAdvance('📋 Копировать весь текст') + 70
+            keys_width = font_metrics.horizontalAdvance('🔑 Показать/скрыть ключи') + 70
+            self.copy_btn_fixed_width = copy_width
+            self.keys_btn_fixed_width = keys_width
+        
+        self.copy_all_btn.setMinimumWidth(self.copy_btn_fixed_width)
+        self.copy_all_btn.setMaximumWidth(self.copy_btn_fixed_width)
+        self.show_keys_btn.setMinimumWidth(self.keys_btn_fixed_width)
+        self.show_keys_btn.setMaximumWidth(self.keys_btn_fixed_width)
+        
+        # Тоггл "Добавить контекст"
+        self.add_context_container = QWidget()
+        self.add_context_container.setStyleSheet("background-color: transparent; border: none;")
+        add_context_layout = QHBoxLayout(self.add_context_container)
+        add_context_layout.setContentsMargins(10, 0, 0, 0)
+        add_context_layout.setSpacing(6)
+        
+        self.add_context_toggle = ToggleSwitch()
+        self.add_context_toggle.setChecked(getattr(self, 'add_context', True))
+        self.add_context_toggle.toggled.connect(self.on_add_context_toggled)
+        
+        self.add_context_label_widget = QLabel(get_translation(self.current_language, 'add_context_label'))
+        self.add_context_label_widget.setStyleSheet("color: #ddd; background-color: transparent; border: none; font-size: 12px;")
+        
+        add_context_layout.addWidget(self.add_context_toggle)
+        add_context_layout.addWidget(self.add_context_label_widget)
+        
+        # Регистрируем тултип для надписи
+        self.register_custom_tooltip(self.add_context_label_widget, get_translation(self.current_language, 'tooltip_add_context'))
+        
+        left_buttons.addWidget(self.copy_all_btn)
+        left_buttons.addWidget(self.add_context_container)
+        left_buttons.addStretch()
+        left_buttons.addWidget(self.show_keys_btn)
+        left_layout.addLayout(left_buttons)
+
+        
+        # Правая панель - перевод
+        right_widget = QWidget()
+        right_layout = QVBoxLayout(right_widget)
+        right_layout.setContentsMargins(5, 5, 5, 5)
+        right_layout.setSpacing(5)
+        
+        right_header = QHBoxLayout()
+        self.translation_header_label = QLabel(get_translation(self.current_language, 'translation_label'))
+        self.translation_header_label.setStyleSheet('''
+            color: #ddd; 
+            font-weight: bold;
+            background-color: transparent;
+            border: none;
+        ''')
+        right_header.addWidget(self.translation_header_label)
+        self.russian_count_label = QLabel('0 строк')
+        self.russian_count_label.setStyleSheet('''
+            color: #aaa;
+            background-color: transparent;
+            border: none;
+        ''')
+        right_header.addStretch()
+        right_header.addWidget(self.russian_count_label)
+        right_layout.addLayout(right_header)
+        
+        self.translated_text_all = NumberedTextEdit()
+        
+        # Добавили светло-серую рамку по умолчанию, оранжевую при фокусе
+        self.translated_text_all.setStyleSheet('''
+            QPlainTextEdit {
+                color: #ffffff;
+                background-color: transparent;
+                border: 2px solid #777;
+                border-radius: 6px;
+            }
+            QPlainTextEdit:focus {
+                border: 2px solid #ff9900;
+                border-radius: 6px;
+            }
+            QPlainTextEdit::selection {
+                background-color: #ff9900;
+                color: #000000;
+            }
+            QMenu {
+                background-color: #3a3a3a;
+                color: #ffffff;
+                border: 1px solid #777;
+            }
+            QMenu::item {
+                padding: 4px 20px;
+                background-color: transparent;
+            }
+            QMenu::item:selected {
+                background-color: #ff9900;
+                color: #000000;
+            }
+            QMenu::item:disabled {
+                color: #808080;
+            }
+        ''')
+        
+        # Устанавливаем кастомный скроллбар
+        self.translated_text_all.setVerticalScrollBar(CustomScrollBar())
+        self.translated_text_all.setHorizontalScrollBar(CustomScrollBar())
+        
+        # Синхронизация видимости горизонтальных скроллбаров
+        self.translated_text_all.horizontalScrollBar().rangeChanged.connect(self._sync_horizontal_scrollbar_visibility)
+        
+        right_layout.addWidget(self.translated_text_all, 1)
+        
+        # Кнопки для правой панели
+        right_buttons = QHBoxLayout()
+        right_buttons.setContentsMargins(0, 5, 0, 0)
+        self.paste_btn = QPushButton('📋 Вставить из буфера')
+        self.paste_btn.clicked.connect(self.paste_from_clipboard)
+        # Убрали tooltip для этой кнопки
+        self.paste_btn.setStyleSheet('''
+            QPushButton {
+                background-color: #ff9900;
+                color: #000000;
+                border: none;
+                padding: 8px 16px;
+                border-radius: 16px;
+                font-weight: bold;
+                font-size: 12px;
+            }
+            QPushButton:hover {
+                background-color: #e68a00;
+            }
+            QPushButton:pressed {
+                background-color: #cc7a00;
+            }
+        ''')
+        
+        self.clear_btn = QPushButton('🗑️ Очистить перевод')
+        self.clear_btn.clicked.connect(self.clear_translation)
+        self.clear_btn.setStyleSheet('''
+            QPushButton {
+                background-color: #ff9900;
+                color: #000000;
+                border: none;
+                padding: 8px 16px;
+                border-radius: 16px;
+                font-weight: bold;
+                font-size: 12px;
+            }
+            QPushButton:hover {
+                background-color: #e68a00;
+            }
+            QPushButton:pressed {
+                background-color: #cc7a00;
+            }
+        ''')
+        
+        # Вычисляем фиксированные ширины на основе русского текста
+        if not hasattr(self, 'paste_btn_fixed_width'):
+            font_metrics = self.paste_btn.fontMetrics()
+            paste_width = font_metrics.horizontalAdvance('📋 Вставить из буфера') + 70
+            clear_width = font_metrics.horizontalAdvance('🗑️ Очистить перевод') + 70
+            self.paste_btn_fixed_width = paste_width
+            self.clear_btn_fixed_width = clear_width
+        
+        self.paste_btn.setMinimumWidth(self.paste_btn_fixed_width)
+        self.paste_btn.setMaximumWidth(self.paste_btn_fixed_width)
+        self.clear_btn.setMinimumWidth(self.clear_btn_fixed_width)
+        self.clear_btn.setMaximumWidth(self.clear_btn_fixed_width)
+        
+        # Тоггл "Синхр. прокрутки" (ToggleSwitch + Label)
+        self.sync_scroll_container = QWidget()
+        self.sync_scroll_container.setStyleSheet("background-color: transparent; border: none;")
+        sync_scroll_layout = QHBoxLayout(self.sync_scroll_container)
+        sync_scroll_layout.setContentsMargins(10, 0, 0, 0)
+        sync_scroll_layout.setSpacing(6)
+        
+        self.sync_scroll_toggle = ToggleSwitch()
+        self.sync_scroll_toggle.setChecked(self.sync_scroll)
+        self.sync_scroll_toggle.toggled.connect(self.toggle_sync_scroll)
+        
+        self.sync_scroll_label_widget = QLabel(get_translation(self.current_language, 'sync_scroll_label'))
+        self.sync_scroll_label_widget.setStyleSheet("color: #ddd; background-color: transparent; border: none; font-size: 12px;")
+        
+        sync_scroll_layout.addWidget(self.sync_scroll_toggle)
+        sync_scroll_layout.addWidget(self.sync_scroll_label_widget)
+        
+        # Регистрируем тултип только для лейбла
+        self.register_custom_tooltip(self.sync_scroll_label_widget, get_translation(self.current_language, 'tooltip_sync_scroll'))
+        
+        right_buttons.addWidget(self.paste_btn)
+        right_buttons.addWidget(self.sync_scroll_container)
+        right_buttons.addStretch()
+        right_buttons.addWidget(self.clear_btn)
+        right_layout.addLayout(right_buttons)
+        
+        # Добавляем панели в разделитель
+        self.pane_splitter.addWidget(left_widget)
+        self.pane_splitter.addWidget(right_widget)
+        self.pane_splitter.setSizes([600, 600])
+        
+        translation_layout.addWidget(self.pane_splitter)
+        
+        # Добавляем фрейм в переданный контейнер (сплиттер или лайаут)
+        if isinstance(parent_container, QSplitter):
+            parent_container.addWidget(translation_frame)
+        else:
+            parent_container.addWidget(translation_frame, 1)
+    
+    def setup_preview_panel(self, parent_container):
+        """Настройка панели предварительного просмотра"""
+        # --- Excel-like header row (always visible, outside scroll) ---
+        # (создаём после preview_layout)
+
+        self.preview_group = QGroupBox("")
+        self.preview_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                border: 1px solid #555;
+                border-radius: 0px;
+                margin: 0px;
+                padding: 0px;
+                background-color: #505050;
+                color: #fff;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 0px;
+                top: 0px;
+                padding: 0px;
+                color: #fff;
+                background-color: transparent;
+                border: none;
+            }
+        """)
+        preview_layout = QVBoxLayout(self.preview_group)
+        preview_layout.setContentsMargins(5, 0, 5, 0) # Добавлены отступы по 5px для выравнивания с верхними окнами
+
+        headers_container = QWidget()
+        headers_container.setStyleSheet('background-color: transparent; border: none;')
+        self.headers_container = headers_container
+
+        # Внутренний широкоформатный контейнер — он будет сдвигаться по X синхронно с прокруткой
+        self.header_inner = QWidget(headers_container)
+        self.header_inner.setStyleSheet('background-color: transparent; border: none;')
+        # Начальные размеры установим позже, после создания меток, чтобы избежать обрезки текста
+        self.header_inner.setFixedWidth(1600)
+
+        header_inner_layout = QHBoxLayout(self.header_inner)
+        header_inner_layout.setContentsMargins(0, 0, 0, 0)
+        header_inner_layout.setSpacing(1)  # Match splitter handle width (1px)
+        self.preview_header_layout = header_inner_layout
+
+        # Метка 1: метаданные (локализуемая)
+        self.preview_header_meta = QLabel()
+        self.preview_header_meta.setStyleSheet('color: #fff; font-weight: bold; background: transparent; padding: 0px; margin: 0px; font-size: 12px;')
+        self.preview_header_meta.setAlignment(Qt.AlignCenter)
+        self.preview_header_meta.setFixedHeight(18)
+        self.preview_header_meta.setText(get_translation(getattr(self, 'current_language', 'ru'), 'preview_header_meta'))
+
+        # Метка 2: референсный текст — динамическая по локали (часть с локалью окрашена)
+        self.preview_header_ref_widget = QWidget()
+        ref_layout = QHBoxLayout(self.preview_header_ref_widget)
+        ref_layout.setContentsMargins(0, 0, 0, 0)
+        # Убираем растяжение между текстом и комбобоксом
+        ref_layout.setSpacing(5)
+        # Убираем общее выравнивание лэйаута, будем использовать стретчи для центрирования
+
+        
+        self.preview_header_ref = QLabel()
+        self.preview_header_ref.setStyleSheet('color: #fff; font-weight: bold; background: transparent; padding: 0px; margin: 0px; font-size: 12px;')
+        self.preview_header_ref.setAlignment(Qt.AlignCenter)
+        self.preview_header_ref.setFixedHeight(18)
+        ref_text = get_translation(getattr(self, 'current_language', 'ru'), 'preview_header_ref')
+        self.preview_header_ref.setText(ref_text)
+        
+        # Стилизация выпадающего списка аналогично другим селекторам локалей
+        combo_style = """
+            QComboBox {
+                background-color: #3b3b3b;
+                color: #ff9900;
+                border: 1px solid #555555;
+                border-radius: 2px;
+                padding: 2px 15px 2px 5px;
+                font-size: 12px;
+                font-weight: bold;
+                combobox-popup: 0;
+            }
+            QComboBox::drop-down {
+                subcontrol-origin: margin;
+                subcontrol-position: top right;
+                width: 15px;
+                border-left-width: 0px;
+            }
+            QComboBox::down-arrow {
+                image: none;
+                border-left: 4px solid transparent;
+                border-right: 4px solid transparent;
+                border-top: 4px solid #ff9900;
+                margin-top: 1px;
+                margin-right: 2px;
+            }
+            QComboBox QAbstractItemView {
+                background-color: #2b2b2b;
+                color: #ffffff;
+                selection-background-color: #ff9900;
+                selection-color: #ffffff;
+                border: 1px solid #555555;
+            }
+        """
+        
+        self.preview_header_ref_combo = QComboBox()
+        self.preview_header_ref_combo.setStyleSheet(combo_style)
+        self.preview_header_ref_combo.setFixedWidth(85)
+        self.preview_header_ref_combo.setFixedHeight(18)
+        self.preview_header_ref_combo.setMaxVisibleItems(8)
+        self.preview_header_ref_combo.setCursor(Qt.PointingHandCursor)
+        # Инициализируем текущим значением референс-локали из настроек
+        ref_loc = getattr(self, 'reference_locale', 'DEFAULT')
+        self.preview_header_ref_combo.addItem(ref_loc)
+        self.preview_header_ref_combo.setCurrentText(ref_loc)
+        self.preview_header_ref_combo.currentIndexChanged.connect(self.on_preview_ref_combo_changed)
+        
+        # Группируем метку и комбобокс вместе в центре колонки
+        ref_layout.addStretch()
+        ref_layout.addWidget(self.preview_header_ref)
+        ref_layout.addWidget(self.preview_header_ref_combo)
+        ref_layout.addStretch()
+
+        # Метка 3: редактор перевода — показывает текущую редактируемую локаль (оранжевый цвет)
+        self.preview_header_editor = QLabel()
+        self.preview_header_editor.setStyleSheet('color: #fff; font-weight: bold; background: transparent; padding: 0px; margin: 0px; font-size: 12px;')
+        self.preview_header_editor.setAlignment(Qt.AlignCenter)
+        self.preview_header_editor.setFixedHeight(18)
+        self.preview_header_editor.setTextFormat(Qt.RichText)
+        # По умолчанию показываем текущую папку (из настроек или DEFAULT)
+        editor_locale = (self.miz_locale_combo.currentText() if hasattr(self, 'miz_locale_combo') and self.miz_locale_combo.count() > 0 
+                         else getattr(self, 'current_miz_folder', 'DEFAULT'))
+        editor_text = get_translation(getattr(self, 'current_language', 'ru'), 'preview_header_editor', locale=f"<span style='color:#ff9900'>{editor_locale}</span>")
+        self.preview_header_editor.setText(editor_text)
+
+        header_inner_layout.addWidget(self.preview_header_meta)
+        header_inner_layout.addWidget(self.preview_header_ref_widget)
+        header_inner_layout.addWidget(self.preview_header_editor)
+
+        # Рассчитаем необходимую высоту по метрикам шрифта, чтобы избежать обрезки
+        try:
+            h_meta = self.preview_header_meta.fontMetrics().height()
+            h_ref = max(self.preview_header_ref.fontMetrics().height(), 18)
+            h_edit = self.preview_header_editor.fontMetrics().height()
+            max_h = max(h_meta, h_ref, h_edit)
+            # Добавим небольшой запас для безопасного отображения (спуск/подъём)
+            outer_h = max_h + 0
+            headers_container.setFixedHeight(outer_h)
+            self.header_inner.setFixedHeight(outer_h)
+        except Exception:
+            # fallback — если что-то пошло не так, используем предыдущие значения
+            headers_container.setFixedHeight(18)
+            self.header_inner.setFixedHeight(18)
+
+        # Добавляем внешнюю строку заголовков (фиксированную) над скроллом
+        preview_layout.addWidget(headers_container)
+        
+        # Поле предпросмотра с прокруткой
+        self.preview_scroll = QScrollArea()
+        self.preview_scroll.setFrameShape(QFrame.NoFrame)
+        self.preview_scroll.setVerticalScrollBar(CustomScrollBar())
+        self.preview_scroll.setHorizontalScrollBar(CustomScrollBar())
+        self.preview_scroll.setWidgetResizable(True)
+        self.preview_scroll.setMinimumHeight(300)  # Увеличиваем высоту предпросмотра
+        self.preview_scroll.setStyleSheet('''
+            background-color: #505050; 
+            border: none;
+        ''')
+        
+        self.preview_content = QWidget()
+        # Убираем все рамки и отступы
+        self.preview_content.setStyleSheet('''
+            background-color: #505050;
+            border: none;
+            margin: 0px;
+            padding: 0px;
+        ''')
+        self.preview_layout = QVBoxLayout(self.preview_content)
+        self.preview_layout.setSpacing(0)
+        self.preview_layout.setContentsMargins(0, 0, 0, 0)
+        self.preview_layout.setSizeConstraint(QVBoxLayout.SetMinimumSize)
+        self.preview_content.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
+        
+        # Создаём три невидимые колонки с QSplitter внутри preview_content
+        self.preview_splitter = CustomSplitter(Qt.Horizontal)
+        self.preview_splitter.setHandleWidth(1)  # Тонкий разделитель в 1 пиксель
+        self.preview_splitter.setStyleSheet("background-color: transparent; border: none;")
+
+        # Колонка 1: метаданные и ключи
+        meta_col = QWidget()
+        meta_col.setStyleSheet('background-color: transparent; border: none;')
+        self.preview_meta_layout = QVBoxLayout(meta_col)
+        self.preview_meta_layout.setSpacing(0)
+        self.preview_meta_layout.setContentsMargins(0, 0, 0, 0)
+        self.preview_meta_layout.setAlignment(Qt.AlignTop)
+        meta_col.setMinimumWidth(120)
+
+        # Колонка 2: оригинальный текст
+        orig_col = QWidget()
+        orig_col.setStyleSheet('background-color: transparent; border: none;')
+        self.preview_orig_layout = QVBoxLayout(orig_col)
+        self.preview_orig_layout.setSpacing(0)
+        self.preview_orig_layout.setContentsMargins(0, 0, 0, 0)
+        self.preview_orig_layout.setAlignment(Qt.AlignTop)
+        orig_col.setMinimumWidth(200)
+
+        # Колонка 3: переведённый текст
+        trans_col = QWidget()
+        trans_col.setStyleSheet('background-color: transparent; border: none;')
+        self.preview_trans_layout = QVBoxLayout(trans_col)
+        self.preview_trans_layout.setSpacing(0)
+        self.preview_trans_layout.setContentsMargins(0, 0, 0, 0)
+        self.preview_trans_layout.setAlignment(Qt.AlignTop)
+        trans_col.setMinimumWidth(200)
+
+        # Добавляем три колонки в сплиттер
+        self.preview_splitter.addWidget(meta_col)
+        self.preview_splitter.addWidget(orig_col)
+        self.preview_splitter.addWidget(trans_col)
+
+        # Добавляем сплиттер в основной preview_layout
+        self.preview_layout.addWidget(self.preview_splitter)
+        
+        # Плашка-заглушка для пустого списка (когда фильтры скрыли всё)
+        self.preview_empty_label = QLabel()
+        self.preview_empty_label.setAlignment(Qt.AlignCenter)
+        # Устанавливаем стиль: светло-серый текст, крупный шрифт, отступ сверху
+        self.preview_empty_label.setStyleSheet("color: #bbbbbb; font-size: 16px; margin-top: 100px; background: transparent; border: none;")
+        self.preview_empty_label.hide()
+        self.preview_layout.addWidget(self.preview_empty_label)
+        self.preview_layout.addStretch() # Прижимаем содержимое к верху
+        
+        self.preview_scroll.setWidget(self.preview_content)
+        # Усиливаем общую рамку для всего окна предпросмотра
+        self.preview_scroll.setStyleSheet('''
+            QScrollArea {
+                background-color: #505050; 
+                border: 1px solid #777;
+                border-radius: 6px;
+            }
+        ''')
+        preview_layout.addWidget(self.preview_scroll)
+
+        # Устанавливаем начальное распределение колонок: первая 319px, остальные пополам
+        # Вызываем после добавления в лэйаут, чтобы сплиттер имел размеры
+        QTimer.singleShot(100, lambda: self.preview_splitter.setSizes([319, 1000, 1000]))
+        # Синхронизация ширины заголовков с размерами колонок и сдвиг по горизонтальной прокрутке
+        try:
+            self.preview_splitter.splitterMoved.connect(lambda pos, index: self.sync_preview_header_widths())
+            self.preview_scroll.horizontalScrollBar().valueChanged.connect(lambda v: self.header_inner.move(-v, 0))
+            QTimer.singleShot(150, self.sync_preview_header_widths)
+        except Exception:
+            pass
+        
+        preview_info_layout = QHBoxLayout()
+        preview_info_layout.setContentsMargins(0, 0, 0, 0)
+        
+        self.preview_info = QLabel(get_translation(self.current_language, 'preview_info', count=0))
+        self.preview_info.setStyleSheet('''
+            color: #aaa;
+            background-color: transparent;
+            border: none;
+        ''')
+        
+        preview_info_layout.addWidget(self.preview_info)
+        
+        # Отступ слева для кнопки
+        BUTTON_OFFSET_LEFT = 10
+        preview_info_layout.addSpacing(BUTTON_OFFSET_LEFT)
+        
+        # Кнопка переключения смещения эвристики (только для .miz)
+        self.heuristic_toggle_btn = QPushButton(
+            get_translation(self.current_language, 'heuristic_toggle_btn', offset='-1')
+        )
+        self.heuristic_toggle_btn.setFixedHeight(21)
+        self.heuristic_toggle_btn.setStyleSheet('''
+            QPushButton {
+                background-color: #ff9900;
+                color: #000000;
+                border: none;
+                padding: 2px 10px;
+                border-radius: 10px;
+                font-weight: bold;
+                font-size: 12px;
+            }
+            QPushButton:hover {
+                background-color: #e68a00;
+            }
+            QPushButton:pressed {
+                background-color: #cc7a00;
+            }
+        ''')
+        self.heuristic_toggle_btn.setCursor(Qt.PointingHandCursor)
+        self.heuristic_toggle_btn.clicked.connect(self.on_heuristic_toggle)
+        self.heuristic_toggle_btn.setVisible(False)  # Скрыта по умолчанию
+        
+        # Минимальная ширина на основе текста
+        font_metrics = self.heuristic_toggle_btn.fontMetrics()
+        ht_btn_width = font_metrics.horizontalAdvance('Смещение: -1') + 30
+        self.heuristic_toggle_btn.setMinimumWidth(ht_btn_width)
+        # setMaximumWidth убрали, чтобы не сдавливало
+        
+        preview_info_layout.addWidget(self.heuristic_toggle_btn)
+
+        # === НАВИГАЦИЯ ПО ЗАКЛАДКАМ ===
+        self.bookmark_nav_container = QWidget()
+        self.bookmark_nav_container.setStyleSheet("background: transparent; border: none;")
+        bn_layout = QHBoxLayout(self.bookmark_nav_container)
+        bn_layout.setContentsMargins(5, 0, 5, 0)
+        bn_layout.setSpacing(4)
+        
+        # Звездочка (иконка)
+        self.bm_nav_icon = QLabel("☆")
+        self.bm_nav_icon.setStyleSheet("color: #eeeeee; font-size: 16px; font-weight: bold;")
+        bn_layout.addWidget(self.bm_nav_icon)
+        
+        # Счетчик (текущая/всего) - цвет #cccccc как у надписи "Найти"
+        self.bm_nav_counter = QLabel("0 / 0")
+        self.bm_nav_counter.setStyleSheet("color: #cccccc; font-size: 12px; font-weight: bold; min-width: 40px;")
+        bn_layout.addWidget(self.bm_nav_counter)
+        
+        # Контейнер для кнопок (вертикально)
+        self.bm_nav_btns_container = QWidget()
+        v_btn_layout = QVBoxLayout(self.bm_nav_btns_container)
+        v_btn_layout.setContentsMargins(0, 0, 0, 0)
+        v_btn_layout.setSpacing(0)
+        
+        # Квадратные кнопки (стиль как у поиска, но меньше)
+        btn_sq_style = """
+            QPushButton {
+                background-color: #505050;
+                color: #ffffff;
+                border: 1px solid #777;
+                border-radius: 2px;
+                font-size: 8px;
+                padding: 0;
+            }
+            QPushButton:hover {
+                background-color: #606060;
+                border-color: #ff9900;
+                color: #ff9900;
+            }
+            QPushButton:disabled {
+                background-color: #353535;
+                color: #666;
+                border-color: #444;
+            }
+        """
+        
+        self.bm_prev_btn = QPushButton("▲")
+        self.bm_prev_btn.setFixedSize(18, 14)
+        self.bm_prev_btn.setCursor(Qt.PointingHandCursor)
+        self.bm_prev_btn.setStyleSheet(btn_sq_style)
+        self.bm_prev_btn.clicked.connect(self.jump_to_prev_bookmark)
+        
+        self.bm_next_btn = QPushButton("▼")
+        self.bm_next_btn.setFixedSize(18, 14)
+        self.bm_next_btn.setCursor(Qt.PointingHandCursor)
+        self.bm_next_btn.setStyleSheet(btn_sq_style)
+        self.bm_next_btn.clicked.connect(self.jump_to_next_bookmark)
+        
+        v_btn_layout.addWidget(self.bm_prev_btn)
+        v_btn_layout.addWidget(self.bm_next_btn)
+        
+        bn_layout.addWidget(self.bm_nav_btns_container)
+        
+        preview_info_layout.addWidget(self.bookmark_nav_container)
+        
+        # === ПОИСК ===
+        self.search_label = QLabel(get_translation(self.current_language, 'search_label'))
+        self.search_label.setStyleSheet("color: #cccccc; margin-left: 20px;")
+        self.search_label.setCursor(Qt.PointingHandCursor)
+        self.search_label.installEventFilter(self)
+        
+        # Инциализируем всплывающее окно настроек поиска
+        self.search_popup = SearchPopup(self, self.current_language)
+        
+        self.search_input = QLineEdit()
+        self.search_input.setPlaceholderText(get_translation(self.current_language, 'search_placeholder'))
+        self.search_input.setClearButtonEnabled(True) # Кнопка очистки (X)
+        self.search_input.setFixedWidth(200) # ~40 chars
+        self.search_input.setStyleSheet("""
+            QLineEdit {
+                color: #ffffff;
+                background-color: #3a3a3a;
+                border: 1px solid #777;
+                border-radius: 4px;
+                padding: 2px 5px;
+            }
+            QLineEdit:focus {
+                border: 1px solid #ff9900;
+            }
+            QMenu {
+                background-color: #3a3a3a;
+                color: #ffffff;
+                border: 1px solid #777;
+            }
+            QMenu::item {
+                padding: 4px 20px;
+                background-color: transparent;
+            }
+            QMenu::item:selected {
+                background-color: #ff9900;
+                color: #000000;
+            }
+            QMenu::item:disabled {
+                color: #808080;
+            }
+        """)
+        self.search_input.textChanged.connect(self.on_search_text_changed)
+        self.search_input.returnPressed.connect(self.search_next)
+        
+        # Добавляем функции удобства: выделение при фокусе и очистка по Esc
+        self.search_input.installEventFilter(self)
+
+        self.search_prev_btn = QPushButton("▲")
+        self.search_prev_btn.setFixedSize(24, 24)
+        self.search_prev_btn.setCursor(Qt.PointingHandCursor)
+        self.search_prev_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #505050;
+                color: #ffffff;
+                border: 1px solid #777;
+                border-radius: 4px;
+            }
+            QPushButton:hover {
+                background-color: #606060;
+                border-color: #ff9900;
+            }
+        """)
+        self.search_prev_btn.clicked.connect(self.search_prev)
+
+        self.search_next_btn = QPushButton("▼")
+        self.search_next_btn.setFixedSize(24, 24)
+        self.search_next_btn.setCursor(Qt.PointingHandCursor)
+        self.search_next_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #505050;
+                color: #ffffff;
+                border: 1px solid #777;
+                border-radius: 4px;
+            }
+            QPushButton:hover {
+                background-color: #606060;
+                border-color: #ff9900;
+            }
+        """)
+        self.search_next_btn.clicked.connect(self.search_next)
+
+        preview_info_layout.setSpacing(5) # Плотная компоновка
+        
+        preview_info_layout.addWidget(self.search_label)
+        preview_info_layout.addWidget(self.search_input)
+        preview_info_layout.addWidget(self.search_prev_btn)
+        preview_info_layout.addWidget(self.search_next_btn)
+        
+        # Label с количеством совпадений
+        matches_label_text = get_translation(self.current_language, 'search_matches', count=0)
+        self.search_matches_label = QLabel(matches_label_text)
+        self.search_matches_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        self.search_matches_label.setStyleSheet("color: #cccccc; font-weight: bold; margin-left: 2px;")
+        self.search_matches_label.setMinimumWidth(60) # Увеличим для видимости
+        preview_info_layout.addWidget(self.search_matches_label)
+
+        # === ЗАМЕНА ===
+        self.replace_label = QLabel(get_translation(self.current_language, 'replace_label'))
+        self.replace_label.setStyleSheet("color: #cccccc; margin-left: 10px;") # Небольшой отступ от счетчика
+        
+        self.replace_input = QLineEdit()
+        self.replace_input.setPlaceholderText(get_translation(self.current_language, 'replace_placeholder'))
+        self.replace_input.setClearButtonEnabled(True)
+        self.replace_input.setFixedWidth(200)
+        self.replace_input.setStyleSheet("""
+            QLineEdit {
+                color: #ffffff;
+                background-color: #3a3a3a;
+                border: 1px solid #777;
+                border-radius: 4px;
+                padding: 2px 5px;
+            }
+            QLineEdit:focus {
+                border: 1px solid #ff9900;
+            }
+        """)
+        self.replace_input.returnPressed.connect(self.on_replace_next_clicked)
+        self.replace_input.installEventFilter(self)
+
+        btn_style = """
+            QPushButton {
+                background-color: #505050;
+                color: #ffffff;
+                border: 1px solid #777;
+                border-radius: 4px;
+                padding: 0 10px;
+                font-size: 12px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #606060;
+                border-color: #ff9900;
+            }
+            QPushButton:pressed {
+                background-color: #404040;
+            }
+        """
+
+        self.replace_btn = QPushButton(get_translation(self.current_language, 'replace_btn'))
+        self.replace_btn.setFixedHeight(24)
+        self.replace_btn.setCursor(Qt.PointingHandCursor)
+        self.replace_btn.setStyleSheet(btn_style)
+        self.replace_btn.clicked.connect(self.on_replace_next_clicked)
+
+        self.replace_all_btn = QPushButton(get_translation(self.current_language, 'replace_all_btn'))
+        self.replace_all_btn.setFixedHeight(24)
+        self.replace_all_btn.setCursor(Qt.PointingHandCursor)
+        self.replace_all_btn.setStyleSheet(btn_style)
+        self.replace_all_btn.clicked.connect(self.on_replace_all_clicked)
+
+        preview_info_layout.addWidget(self.replace_label)
+        preview_info_layout.addWidget(self.replace_input)
+        preview_info_layout.addWidget(self.replace_btn)
+        preview_info_layout.addWidget(self.replace_all_btn)
+        
+        preview_info_layout.addStretch()
+        # Максимально прижимаем панель к краям и уменьшаем отступ снизу
+        preview_info_layout.setContentsMargins(0, 0, 0, 1)
+        
+        # Статистика строк для перевода
+        initial_stats = get_translation(self.current_language, 'stats_lines', count=0)
+        self.stats_label = QLabel(initial_stats)
+        self.stats_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.stats_label.setStyleSheet('''
+            font-weight: bold; 
+            color: #27ae60;
+            background-color: transparent;
+            border: none;
+            padding: 0;
+        ''')
+        self.stats_label.setAttribute(Qt.WA_TranslucentBackground, True)
+        self.stats_label.setAutoFillBackground(False)
+        self.stats_label.setTextFormat(Qt.RichText)
+        
+        preview_info_layout.addWidget(self.stats_label)
+        
+        preview_layout.addLayout(preview_info_layout)
+        
+        # Добавляем группу предпросмотра в переданный контейнер
+        if isinstance(parent_container, QSplitter):
+            parent_container.addWidget(self.preview_group)
+        else:
+            parent_container.addWidget(self.preview_group)
+    
+    # [SETTINGS_METHODS]
+    def load_settings(self):
+        """Загружает настройки из файла"""
+        if os.path.exists(self.settings_file):
+            try:
+                # Попробуем несколько раз загрузить JSON, возможно файл временно записывается
+                settings = None
+                last_exc = None
+                for attempt in range(3):
+                    try:
+                        with open(self.settings_file, 'r', encoding='utf-8') as f:
+                            settings = json.load(f)
+                        last_exc = None
+                        break
+                    except Exception as e:
+                        last_exc = e
+                        time.sleep(0.05)
+                if settings is None and last_exc:
+                    raise last_exc
+                
+                # Загружаем язык
+                if 'language' in settings:
+                    self.current_language = settings['language']
+                    if hasattr(self, 'language_toggle'):
+                        self.language_toggle.setChecked(self.current_language == 'ru')
+                
+                # Загружаем стандартные фильтры
+                if 'filter_action_text' in settings:
+                    self.filter_action_text.setChecked(settings['filter_action_text'])
+                if 'filter_action_radio' in settings:
+                    self.filter_action_radio.setChecked(settings['filter_action_radio'])
+                if 'filter_description' in settings:
+                    self.filter_description.setChecked(settings['filter_description'])
+                if 'filter_subtitle' in settings:
+                    self.filter_subtitle.setChecked(settings['filter_subtitle'])
+                if 'filter_sortie' in settings:
+                    self.filter_sortie.setChecked(settings['filter_sortie'])
+                if 'filter_name' in settings:
+                    self.filter_name.setChecked(settings['filter_name'])
+                if 'filter_empty' in settings:
+                    self.filter_empty_cb.setChecked(settings['filter_empty'])
+                    self.filter_empty = settings['filter_empty']
+                if 'filter_empty_keys' in settings:
+                    self.filter_empty_keys = settings['filter_empty_keys']
+                    if hasattr(self, 'filter_empty_keys_cb'):
+                        self.filter_empty_keys_cb.setChecked(self.filter_empty_keys)
+                if 'filter_audio_keys' in settings:
+                    self.filter_audio_keys = settings['filter_audio_keys']
+                    if hasattr(self, 'filter_audio_keys_cb'):
+                        self.filter_audio_keys_cb.setChecked(self.filter_audio_keys)
+                
+                # Загружаем новые настройки
+                self.create_backup = settings.get('create_backup', False)
+                self.show_all_keys = settings.get('show_all_keys', False)
+                self.skip_locale_dialog = settings.get('skip_locale_dialog', False)
+                self.multi_window_enabled = settings.get('multi_window_enabled', False)
+                self.default_open_locale = settings.get('default_open_locale', 'DEFAULT')
+                self.current_miz_folder = self.default_open_locale
+                
+                # Применяем состояние к тогглу, если он уже создан
+                if hasattr(self, 'show_all_keys_cb'):
+                    self.show_all_keys_cb.setChecked(self.show_all_keys)
+                
+                # Загружаем последние папки
+                if 'last_open_folder' in settings:
+                    self.last_open_folder = settings['last_open_folder']
+                if 'last_save_folder' in settings:
+                    self.last_save_folder = settings['last_save_folder']
+                if 'last_audio_folder' in settings:
+                    self.last_audio_folder = settings['last_audio_folder']
+                
+                # Загружаем настройку контекста
+                self.add_context = settings.get('add_context', True)
+                if hasattr(self, 'add_context_toggle'):
+                    self.add_context_toggle.setChecked(self.add_context)
+
+                # Загружаем сами тексты контекста
+                self.ai_context_1 = settings.get('ai_context_1', AI_CONTEXTS.get('RU', get_translation(self.current_language, 'default_context_text')))
+                self.ai_context_2 = settings.get('ai_context_2', "")
+                self.ai_context_lang_1 = settings.get('ai_context_lang_1', "RU")
+                # Загружаем произвольные фильтры
+                if 'custom_filters' in settings:
+                    for i, custom_data in enumerate(settings['custom_filters']):
+                        if i < len(self.custom_filters):
+                            self.custom_filters[i]['checkbox'].setChecked(custom_data['enabled'])
+                            self.custom_filters[i]['line_edit'].setText(custom_data['text'])
+                
+                
+                # Загружаем размеры окна Менеджера файлов
+                self.saved_files_window_geom = settings.get('files_window_geom', None)
+                # Совместимость со старым форматом files_window_pos
+                if not self.saved_files_window_geom and 'files_window_pos' in settings:
+                    pos = settings['files_window_pos']
+                    self.saved_files_window_geom = [pos[0], pos[1], 1400, 1000]
+            
+                # Загружаем размеры окна
+                if 'window_width' in settings and 'window_height' in settings:
+                    self.resize(settings['window_width'], settings['window_height'])
+                
+                # Загружаем настройку синхронизации прокрутки
+                self.sync_scroll = settings.get('sync_scroll', False)
+                if hasattr(self, 'sync_scroll_toggle'):
+                    self.sync_scroll_toggle.setChecked(self.sync_scroll)
+                    self.toggle_sync_scroll()
+
+                # Загружаем размеры сплиттеров
+                if 'pane_splitter_sizes' in settings and hasattr(self, 'pane_splitter'):
+                    self.pane_splitter.setSizes(settings['pane_splitter_sizes'])
+                if 'main_vertical_splitter_sizes' in settings and hasattr(self, 'main_vertical_splitter'):
+                    sizes = settings['main_vertical_splitter_sizes']
+                    # Защита от полного скрытия окна (например, из-за сбоя сохранения)
+                    if len(sizes) == 2 and sizes[1] < 100:
+                        sizes[1] = max(100, sizes[0] // 3)
+                        sizes[0] = max(100, sizes[0] - sizes[1])
+                    self.main_vertical_splitter.setSizes(sizes)
+
+                # Загружаем настройки подсветки пустых полей
+                self.highlight_empty_fields = settings.get('highlight_empty_fields', True)
+                self.highlight_empty_color = settings.get('highlight_empty_color', '#434343')
+                self.debug_logs_enabled = settings.get('debug_logs_enabled', False)
+                ErrorLogger.ENABLED = self.debug_logs_enabled
+
+                # Загружаем позиции окон плеера и менеджера
+                self.saved_audio_player_geom = settings.get('audio_player_geom')
+                # Совместимость со старым форматом audio_player_pos
+                if not self.saved_audio_player_geom and 'audio_player_pos' in settings:
+                    pos = settings['audio_player_pos']
+                    self.saved_audio_player_geom = [pos[0], pos[1], 550, 280]
+                self.saved_audio_player_playlist_visible = settings.get('audio_player_playlist_visible', False)
+                self.saved_audio_player_expanded_height = settings.get('audio_player_expanded_height', 510)
+                self.saved_briefing_window_geom = settings.get('briefing_window_geom')
+                self.saved_briefing_window_pos = settings.get('briefing_window_pos')
+                if not self.saved_briefing_window_geom and self.saved_briefing_window_pos:
+                    self.saved_briefing_window_geom = [self.saved_briefing_window_pos[0], self.saved_briefing_window_pos[1], 750, 850]
+                
+                self.saved_settings_window_geom = settings.get('settings_window_geom')
+                
+                # Загружаем настройки темы (fallback — встроенные значения)
+                self.theme_bg_even = settings.get('theme_bg_even', '#393939')
+                self.theme_bg_odd = settings.get('theme_bg_odd', '#2f2f2f')
+                self.theme_text_modified = settings.get('theme_text_modified', '#ff6666')
+                self.theme_text_saved = settings.get('theme_text_saved', '#2ecc71')
+                self.theme_text_session = settings.get('theme_text_session', '#bbf324')
+                
+                # Загружаем настройки закладок
+                self.bookmark_bg_star = settings.get('bookmark_bg_star', '#967800')
+                self.bookmark_bg_question = settings.get('bookmark_bg_question', '#0f5000')
+                self.bookmark_bg_alert = settings.get('bookmark_bg_alert', '#5a0000')
+                self.bookmark_bg_opacity = settings.get('bookmark_bg_opacity', 0.7)
+
+                # Загружаем громкость
+                self.audio_volume = settings.get('audio_volume', 50)
+                # [FIX] Применяем громкость к миксеру сразу после загрузки
+                try:
+                    pygame.mixer.music.set_volume(self.audio_volume / 100.0)
+                except: pass
+
+                # Загружаем reference locale
+                self.settings_reference_locale = settings.get('reference_locale', 'DEFAULT')
+                self.reference_locale = self.settings_reference_locale
+                
+                self.preview_font_family = settings.get('preview_font_family', 'Arial')
+                self.preview_font_size = settings.get('preview_font_size', 11)
+                
+                # Обновляем тексты в шапке предпросмотра согласно загруженным настройкам
+                self.update_preview_header_texts()
+                
+                # Область поиска
+                self.search_scope_original = settings.get('search_scope_original', True)
+                self.search_scope_reference = settings.get('search_scope_reference', True)
+                self.search_scope_editor = settings.get('search_scope_editor', True)
+                self.search_scope_audio = settings.get('search_scope_audio', True)
+                self.search_case_sensitive = settings.get('search_case_sensitive', False)
+
+                # Загружаем состояние окна просмотра картинок
+                self.image_viewer_maximized = settings.get('image_viewer_maximized', False)
+                self.saved_image_viewer_geom = settings.get('image_viewer_geom', None)
+                self.recent_files = settings.get('recent_files', [])
+                self.tts_auto_play = settings.get('tts_auto_play', False)
+
+                # Settings loaded successfully (silent)
+                
+            except Exception as e:
+                ErrorLogger.log_error("SETTINGS_LOAD", f"Ошибка загрузки настроек: {e}")
+                print(f"ERROR: Settings load failed: {e}")
+        # If no settings file, defaults are already set in __init__
+    
+    def save_settings(self, force=False, update_preview=True, update_ui=True):
+        """Сохраняет настройки в файл"""
+        try:
+            # Debug logging: record every call to save_settings with stack trace
+            if ErrorLogger.ENABLED:
+                try:
+                    import traceback
+                    log_path = os.path.join(os.path.dirname(__file__), 'settings_debug.log')
+                    with open(log_path, 'a', encoding='utf-8') as lf:
+                        lf.write(f"--- save_settings called at {datetime.now().isoformat()} force={force} suppress={getattr(self, '_suppress_settings_save', False)}\n")
+                        for line in traceback.format_stack():
+                            lf.write(line)
+                        lf.write('\n')
+                except Exception:
+                    pass
+            # If suppression flag is set and not forced, skip saving (prevents dialog autosave)
+            if getattr(self, '_suppress_settings_save', False) and not force:
+                return
+            settings = {
+                'version': VersionInfo.CURRENT,
+                'language': self.current_language,
+                'filter_action_text': self.filter_action_text.isChecked(),
+                'filter_action_radio': self.filter_action_radio.isChecked(),
+                'filter_description': self.filter_description.isChecked(),
+                'filter_subtitle': self.filter_subtitle.isChecked(),
+                'filter_sortie': self.filter_sortie.isChecked(),
+                'filter_name': self.filter_name.isChecked(),
+                'filter_empty': self.filter_empty_cb.isChecked(),
+                'filter_empty_keys': self.filter_empty_keys_cb.isChecked() if hasattr(self, 'filter_empty_keys_cb') else getattr(self, 'filter_empty_keys', True),
+                'filter_audio_keys': self.filter_audio_keys_cb.isChecked() if hasattr(self, 'filter_audio_keys_cb') else getattr(self, 'filter_audio_keys', False),
+                    'highlight_empty_fields': getattr(self, 'highlight_empty_fields', True),
+                    'highlight_empty_color': getattr(self, 'highlight_empty_color', '#434343'),
+                    'debug_logs_enabled': getattr(self, 'debug_logs_enabled', False),
+                'create_backup': getattr(self, 'create_backup', False),
+                'show_all_keys': getattr(self, 'show_all_keys', False),
+                'last_open_folder': getattr(self, 'last_open_folder', ''),
+                'last_save_folder': getattr(self, 'last_save_folder', ''),
+                'last_audio_folder': getattr(self, 'last_audio_folder', ''),
+                'window_width': self.width(),
+                'window_height': self.height(),
+                'add_context': self.add_context_toggle.isChecked() if hasattr(self, 'add_context_toggle') else self.add_context,
+                'ai_context_1': getattr(self, 'ai_context_1', ""),
+                'ai_context_2': getattr(self, 'ai_context_2', ""),
+                'ai_context_lang_1': getattr(self, 'ai_context_lang_1', "RU"),
+                'sync_scroll': self.sync_scroll,
+                'pane_splitter_sizes': self.pane_splitter.sizes() if hasattr(self, 'pane_splitter') else [600, 600],
+                'main_vertical_splitter_sizes': self.main_vertical_splitter.sizes() if hasattr(self, 'main_vertical_splitter') else [500, 500],
+                'audio_player_geom': [self.audio_player.x(), self.audio_player.y(), self.audio_player.width(), self.audio_player.height()] if hasattr(self, 'audio_player') and self.audio_player else getattr(self, 'saved_audio_player_geom', None),
+                'audio_player_playlist_visible': self.audio_player._playlist_visible if hasattr(self, 'audio_player') and self.audio_player else getattr(self, 'saved_audio_player_playlist_visible', False),
+                'audio_player_expanded_height': getattr(self, 'saved_audio_player_expanded_height', 510),
+                'files_window_geom': [self.files_manager_window.x(), self.files_manager_window.y(), self.files_manager_window.width(), self.files_manager_window.height()] if hasattr(self, 'files_manager_window') and self.files_manager_window else getattr(self, 'saved_files_window_geom', None),
+                'briefing_window_geom': getattr(self, 'saved_briefing_window_geom', None),
+                'settings_window_geom': [self.settings_window.x(), self.settings_window.y(), self.settings_window.width(), self.settings_window.height()] if hasattr(self, 'settings_window') and self.settings_window and self.settings_window.isVisible() else getattr(self, 'saved_settings_window_geom', None),
+                'audio_volume': getattr(self, 'audio_volume', 50),
+                'theme_bg_even': getattr(self, 'theme_bg_even', '#393939'),
+                'theme_bg_odd': getattr(self, 'theme_bg_odd', '#2f2f2f'),
+                'theme_text_modified': getattr(self, 'theme_text_modified', '#ff6666'),
+                'theme_text_saved': getattr(self, 'theme_text_saved', '#2ecc71'),
+                'theme_text_session': getattr(self, 'theme_text_session', '#bbf324'),
+                'bookmark_bg_star': getattr(self, 'bookmark_bg_star', '#967800'),
+                'bookmark_bg_question': getattr(self, 'bookmark_bg_question', '#0f5000'),
+                'bookmark_bg_alert': getattr(self, 'bookmark_bg_alert', '#5a0000'),
+                'bookmark_bg_opacity': getattr(self, 'bookmark_bg_opacity', 0.7),
+                'reference_locale': getattr(self, 'settings_reference_locale', 'DEFAULT'),
+                'skip_locale_dialog': getattr(self, 'skip_locale_dialog', False),
+                'default_open_locale': getattr(self, 'default_open_locale', 'DEFAULT'),
+                'multi_window_enabled': getattr(self, 'multi_window_enabled', False),
+                'preview_font_family': getattr(self, 'preview_font_family', 'Arial'),
+                'preview_font_size': getattr(self, 'preview_font_size', 11),
+                'search_scope_original': getattr(self, 'search_scope_original', True),
+                'search_scope_reference': getattr(self, 'search_scope_reference', True),
+                'search_scope_editor': getattr(self, 'search_scope_editor', True),
+                'search_scope_audio': getattr(self, 'search_scope_audio', True),
+                'search_case_sensitive': getattr(self, 'search_case_sensitive', False),
+                'image_viewer_maximized': getattr(self, 'image_viewer_maximized', False),
+                'image_viewer_geom': getattr(self, 'saved_image_viewer_geom', None),
+                'recent_files': getattr(self, 'recent_files', []),
+                'tts_auto_play': getattr(self, 'tts_auto_play', False),
+                'custom_filters': []
+            }
+            
+            # Сохраняем произвольные фильтры
+            for custom_filter in self.custom_filters:
+                settings['custom_filters'].append({
+                    'enabled': custom_filter['checkbox'].isChecked(),
+                    'text': custom_filter['line_edit'].text()
+                })
+            
+            with open(self.settings_file, 'w', encoding='utf-8') as f:
+                json.dump(settings, f, ensure_ascii=False, indent=2)
+            
+            # Apply changes immediately (visual only)
+            if update_ui:
+                self.update_display(update_preview=update_preview)
+                # Обновляем заголовки предпросмотра если reference_locale изменился
+                try:
+                    self.update_preview_header_texts()
+                except Exception:
+                    pass
+            
+            # Settings saved successfully (silent)
+            
+        except Exception as e:
+            ErrorLogger.log_error("SETTINGS_SAVE", f"Ошибка сохранения настроек: {e}")
+            print(f"ERROR: Settings save failed: {e}")
+
+    def check_startup_args(self):
+        """Проверка на наличие аргументов командной строки при запуске (например, двойной клик по .miz файлу).
+        Вызывается только после того, как все (размеры окна, шрифты и т.д) настройки загрузились."""
+        if len(sys.argv) > 1:
+            file_to_open = sys.argv[1].strip('"\'')
+            if os.path.exists(file_to_open):
+                try:
+                    ext = file_to_open.lower()
+                    if ext.endswith('.miz'):
+                        self.open_miz_file(preselected_path=file_to_open)
+                    else:
+                        self.open_file(preselected_path=file_to_open)
+                except Exception as e:
+                    print(f"Error opening startup file: {e}")
+
+    def showEvent(self, event):
+        """Перехват первого показа окна для отложенной загрузки файла из командной строки."""
+        super().showEvent(event)
+        if getattr(self, 'is_first_show', False):
+            self.is_first_show = False
+            # Запускаем чтение аргументов только тогда, когда окно уже реально показано и скомпоновано
+            QTimer.singleShot(100, self.check_startup_args)
+
+    def handle_new_instance_connection(self):
+        """Обрабатывает подключение от новой копии программы (Single-Instance IPC)"""
+        if not hasattr(self, 'local_server'):
+            return
+            
+        socket = self.local_server.nextPendingConnection()
+        if socket:
+            if socket.waitForReadyRead(1000):
+                data = bytes(socket.readAll()).decode('utf-8')
+                
+                # Проверяем, это ли команда открытия файла (префикс FILE:)
+                if data.startswith("FILE:"):
+                    file_to_open = data[5:].strip('"\'')
+                    
+                    # Возвращаем окно к нормальному размеру, если оно свернуто
+                    self.showNormal()
+                    
+                    # ПРИНУДИТЕЛЬНЫЙ ФОКУС: выводим окно на передний план
+                    self.setWindowFlags(self.windowFlags() | Qt.WindowStaysOnTopHint)
+                    self.show()
+                    self.setWindowFlags(self.windowFlags() & ~Qt.WindowStaysOnTopHint)
+                    self.show()
+                    self.activateWindow()
+                    self.raise_()
+                    
+                    # Спрашиваем пользователя: тут или в новом окне?
+                    # Если есть несохраненные изменения — добавляем предупреждение
+                    warning = ""
+                    if getattr(self, 'has_unsaved_changes', False):
+                        warning = f"\n\n<span style='color: #ff6666; font-weight: bold;'>{get_translation(self.current_language, 'unsaved_warning_ipc')}</span>"
+                    
+                    msg_box = QMessageBox(self)
+                    msg_box.setWindowTitle(get_translation(self.current_language, 'instance_open_choice_title'))
+                    msg_label = get_translation(self.current_language, 'instance_open_choice_msg', filename=os.path.basename(file_to_open))
+                    msg_box.setTextFormat(Qt.RichText)
+                    
+                    # Заменяем \n на <br> для корректного отображения в RichText
+                    full_text = f"{msg_label}{warning}".replace("\n", "<br>")
+                    msg_box.setText(full_text)
+                    
+                    current_btn = msg_box.addButton(get_translation(self.current_language, 'choice_current_instance'), QMessageBox.ActionRole)
+                    new_btn = msg_box.addButton(get_translation(self.current_language, 'choice_new_instance'), QMessageBox.ActionRole)
+                    cancel_btn = msg_box.addButton(get_translation(self.current_language, 'choice_cancel'), QMessageBox.RejectRole)
+                    
+                    # Диалог тоже должен быть поверх всех
+                    msg_box.setWindowFlags(msg_box.windowFlags() | Qt.WindowStaysOnTopHint)
+                    
+                    # ПРИНУДИТЕЛЬНО активируем основное окно перед диалогом
+                    self.show()
+                    self.activateWindow()
+                    self.raise_()
+                    
+                    if not getattr(self, 'multi_window_enabled', False):
+                        # Автоматически открываем в текущем окне (режим Single Window)
+                        if file_to_open.lower().endswith('.miz'):
+                            self.open_miz_file(preselected_path=file_to_open)
+                        else:
+                            self.open_file(preselected_path=file_to_open)
+                        self.activateWindow()
+                        self.raise_()
+                    else:
+                        msg_box.exec_()
+                    
+                    if msg_box.clickedButton() == current_btn:
+                        # Открываем в текущем окне (сбросив флаг изменений, так как пользователь подтвердил выбор)
+                        self.set_modified(False)
+                        if file_to_open.lower().endswith('.miz'):
+                            self.open_miz_file(preselected_path=file_to_open)
+                        else:
+                            self.open_file(preselected_path=file_to_open)
+                        
+                        # ПОВТОРНЫЙ ФОКУС: после открытия файла гарантируем, что окно сверху и активно
+                        self.activateWindow()
+                        self.raise_()
+                    elif msg_box.clickedButton() == new_btn:
+                        # Запускаем новый экземпляр через QProcess (передавая файл и ФЛАГ НОВОГО ЭКЗЕМПЛЯРА)
+                        import subprocess
+                        if getattr(sys, 'frozen', False):
+                            # В скомпилированном виде sys.executable - это путь к самому EXE
+                            subprocess.Popen([sys.executable, file_to_open, "--new-instance"])
+                        else:
+                            # В режиме скрипта sys.executable - это python.exe, sys.argv[0] - путь к main.py
+                            subprocess.Popen([sys.executable, sys.argv[0], file_to_open, "--new-instance"])
+                
+            socket.disconnectFromServer()
+            
+    def change_language(self, is_russian):
+        """Обработчик смены языка"""
+        if getattr(self, 'is_initializing', False):
+            self.current_language = 'ru' if is_russian else 'en'
+            return
+        self.current_language = 'ru' if is_russian else 'en'
+        self.update_interface_language()
+        self.save_settings(update_preview=False, update_ui=False)
+    
+    def add_to_recent(self, file_path):
+        """Добавляет файл в список недавних (дедупликация, лимит 10)"""
+        # Нормализуем путь
+        file_path = os.path.normpath(file_path)
+        
+        # Убираем если уже есть (чтобы переместить наверх)
+        self.recent_files = [f for f in self.recent_files if os.path.normpath(f) != file_path]
+        
+        # Добавляем в начало
+        self.recent_files.insert(0, file_path)
+        
+        # Обрезаем до 10
+        self.recent_files = self.recent_files[:10]
+        
+        # Обновляем меню и сохраняем настройки (без перерисовки UI/превью)
+        self.update_recent_menu()
+
+    def open_new_instance(self):
+        """Запускает новый экземпляр программы"""
+        import subprocess
+        import sys
+        try:
+            if getattr(sys, 'frozen', False):
+                # В скомпилированном виде sys.executable - это путь к самому EXE
+                subprocess.Popen([sys.executable, "--new-instance"])
+            else:
+                # В режиме скрипта sys.executable - это python.exe, sys.argv[0] - путь к main.py
+                subprocess.Popen([sys.executable, sys.argv[0], "--new-instance"])
+        except Exception as e:
+            ErrorLogger.log_error("NEW_INSTANCE", f"Ошибка запуска нового экземпляра: {e}")
+        self.save_settings(update_preview=False, update_ui=False)
+    
+    def update_recent_menu(self):
+        """Пересоздаёт содержимое выпадающего меню кнопки 'Открыть'"""
+        if not hasattr(self, 'recent_menu'):
+            return
+        
+        self.recent_menu.clear()
+        
+        # Используем unified open method для верхнего пункта меню
+        action = self.recent_menu.addAction(get_translation(self.current_language, 'open_unified_btn'))
+        action.setToolTip("") # Без тултипа для статической кнопки
+        action.triggered.connect(self.open_any_file)
+        
+        # Сепаратор
+        self.recent_menu.addSeparator()
+        
+        # Заголовок «Недавние файлы»
+        header = self.recent_menu.addAction(get_translation(self.current_language, 'recent_files_label'))
+        header.setEnabled(False)
+        
+        if self.recent_files:
+            from PyQt5.QtGui import QFontMetrics
+            from PyQt5.QtCore import Qt
+            
+            # Настройка метрик для обрезки текста
+            metrics = QFontMetrics(self.recent_menu.font())
+            max_item_width = 400  # Максимальная ширина пункта меню в пикселях
+            
+            for path in self.recent_files:
+                basename = os.path.basename(path)
+                
+                # Обрезаем текст, если он слишком длинный
+                display_name = metrics.elidedText(f"  {basename}", Qt.ElideMiddle, max_item_width)
+                
+                action = self.recent_menu.addAction(display_name)
+                action.setData(path) # Сохраняем путь в данные экшена
+                action.setToolTip(path)
+                # Используем lambda с default arg, чтобы захватить текущее значение path
+                action.triggered.connect(lambda checked, p=path: self.load_recent_file(p))
+            
+            # Сепаратор + «Очистить историю»
+            self.recent_menu.addSeparator()
+            clear_action = self.recent_menu.addAction(get_translation(self.current_language, 'clear_recent_btn'))
+            clear_action.setToolTip("") # Без тултипа для статической кнопки
+            clear_action.triggered.connect(self.clear_recent_history)
+        else:
+            no_files = self.recent_menu.addAction(get_translation(self.current_language, 'no_recent_files'))
+            no_files.setEnabled(False)
+            
+        # Сепаратор + «Открыть новый экземпляр» (всегда в конце)
+        self.recent_menu.addSeparator()
+        new_instance_action = self.recent_menu.addAction(get_translation(self.current_language, 'open_new_instance_btn'))
+        new_instance_action.setToolTip("") # Без тултипа
+        new_instance_action.triggered.connect(self.open_new_instance)
+    
+    def _on_recent_menu_hidden(self):
+        """Останавливает таймер и прячет тултип при закрытии меню"""
+        self.tooltip_timer.stop()
+        self._pending_tooltip_data = None
+        if hasattr(self, 'custom_tooltip'):
+            self.custom_tooltip.hide()
+            
+    def _on_recent_menu_show(self):
+        """Динамически настраивает ширину меню перед показом"""
+        if hasattr(self, 'open_unified_btn') and hasattr(self, 'recent_menu'):
+            # Устанавливаем ширину: ширина кнопки + 0 пикселей, минимум 250px
+            btn_width = self.open_unified_btn.width()
+            target_width = max(250, btn_width + 0)
+            self.recent_menu.setMinimumWidth(target_width)
+
+    def _on_recent_menu_hovered(self, action):
+        """Показывает кастомный тултип при наведении на пункт меню с задержкой 1 сек"""
+        if not action or not hasattr(self, 'custom_tooltip'):
+            self.tooltip_timer.stop()
+            self._pending_tooltip_data = None
+            if hasattr(self, 'custom_tooltip'):
+                self.custom_tooltip.hide()
+            return
+            
+        # Показываем тултип ТОЛЬКО если у экшена есть данные (путь к файлу)
+        tip_text = action.data()
+        if isinstance(tip_text, str) and tip_text:
+            # Запоминаем данные (текст, тип объекта Action, сторону и ТЕКУЩУЮ ПОЗИЦИЮ КУРСОРA)
+            from PyQt5.QtGui import QCursor
+            pos = QCursor.pos()
+            self._pending_tooltip_data = (tip_text, action, pos)
+            # Для этого меню задержка 0.5 секунды (500 мс)
+            self.tooltip_timer.start(500)
+        else:
+            self.tooltip_timer.stop()
+            self._pending_tooltip_data = None
+            self.custom_tooltip.hide()
+
+    def load_recent_file(self, path):
+        """Открывает файл из списка недавних"""
+        if not os.path.exists(path):
+            QMessageBox.warning(self, 
+                get_translation(self.current_language, 'error_title'),
+                get_translation(self.current_language, 'file_not_found') + f":\n{path}")
+            # Убираем из списка
+            self.recent_files = [f for f in self.recent_files if os.path.normpath(f) != os.path.normpath(path)]
+            self.update_recent_menu()
+            self.save_settings(update_preview=False, update_ui=False)
+            return
+        
+        # Определяем тип файла и вызываем подходящий метод
+        if path.lower().endswith('.miz'):
+            self.open_miz_file(preselected_path=path)
+        else:
+            self.open_file(preselected_path=path)
+    
+    def clear_recent_history(self):
+        """Очищает список недавних файлов"""
+        self.recent_files = []
+        self.update_recent_menu()
+        self.save_settings(update_preview=False, update_ui=False)
+    
+    def update_interface_language(self):
+        """Обновляет текст интерфейса на текущем языке"""
+        # Обновляем статусную строку
+        self.statusBar().showMessage(get_translation(self.current_language, 'status_ready'))
+        
+        # Обновляем кнопки управления файлами
+        self.open_unified_btn.setText(get_translation(self.current_language, 'open_unified_btn'))
+        self.update_recent_menu()
+        
+        # Обновляем открытые окна
+        if self.audio_player:
+            self.audio_player.retranslate_ui(self.current_language)
+            
+        if hasattr(self, 'files_manager_window') and self.files_manager_window:
+            self.files_manager_window.retranslate_ui(self.current_language)
+        
+        self.save_file_btn.setText(get_translation(self.current_language, 'save_file_btn'))
+        
+        # Кнопки удаления локали
+        if hasattr(self, 'delete_locale_btn'):
+            self.delete_locale_btn.setText(get_translation(self.current_language, 'delete_locale_btn'))
+        if hasattr(self, 'file_delete_locale_btn'):
+            self.file_delete_locale_btn.setText(get_translation(self.current_language, 'delete_locale_btn'))
+        
+        # Префиксы локализации
+        if hasattr(self, 'file_loc_prefix_label'):
+            self.file_loc_prefix_label.setText(get_translation(self.current_language, 'localization_label'))
+        
+        if hasattr(self, 'search_popup') and self.search_popup:
+            self.search_popup.current_language = self.current_language
+            self.search_popup.retranslate_ui()
+            
+        # Применяем фиксированный размер кнопок при переключении языков
+        if hasattr(self, 'button_fixed_width'):
+            for button in [self.open_unified_btn, self.save_file_btn]:
+                button.setMinimumWidth(self.button_fixed_width)
+                button.setMaximumWidth(self.button_fixed_width)
+        
+        # Обновляем кнопки действий
+        if hasattr(self, 'copy_all_btn'):
+            self.copy_all_btn.setText(get_translation(self.current_language, 'copy_all_btn'))
+        if hasattr(self, 'show_keys_btn'):
+            self.show_keys_btn.setText(get_translation(self.current_language, 'show_keys_btn'))
+        if hasattr(self, 'paste_btn'):
+            self.paste_btn.setText(get_translation(self.current_language, 'paste_btn'))
+        if hasattr(self, 'clear_btn'):
+            self.clear_btn.setText(get_translation(self.current_language, 'clear_btn'))
+        
+        # Применяем фиксированные размеры для всех кнопок при переключении языков
+        if hasattr(self, 'copy_btn_fixed_width'):
+            self.copy_all_btn.setMinimumWidth(self.copy_btn_fixed_width)
+            self.copy_all_btn.setMaximumWidth(self.copy_btn_fixed_width)
+        if hasattr(self, 'keys_btn_fixed_width'):
+            self.show_keys_btn.setMinimumWidth(self.keys_btn_fixed_width)
+            self.show_keys_btn.setMaximumWidth(self.keys_btn_fixed_width)
+        if hasattr(self, 'paste_btn_fixed_width'):
+            self.paste_btn.setMinimumWidth(self.paste_btn_fixed_width)
+            self.paste_btn.setMaximumWidth(self.paste_btn_fixed_width)
+        if hasattr(self, 'clear_btn_fixed_width'):
+            self.clear_btn.setMinimumWidth(self.clear_btn_fixed_width)
+            self.clear_btn.setMaximumWidth(self.clear_btn_fixed_width)
+        
+        # Обновляем другие кнопки
+        if hasattr(self, 'default_filters_btn'):
+            self.default_filters_btn.setText(get_translation(self.current_language, 'default_filters_btn'))
+        
+        # Применяем фиксированный размер для кнопки фильтров
+        if hasattr(self, 'filter_btn_fixed_width'):
+            self.default_filters_btn.setMinimumWidth(self.filter_btn_fixed_width)
+            self.default_filters_btn.setMaximumWidth(self.filter_btn_fixed_width)
+            
+        # Обновляем текст заглушки превью
+        if hasattr(self, 'preview_empty_label'):
+            self.preview_empty_label.setText(get_translation(self.current_language, 'preview_no_keys_match'))
+            
+        # Обновляем метки новых фильтров
+        if hasattr(self, 'label_audio_keys'):
+            self.label_audio_keys.setText(get_translation(self.current_language, 'show_audio_keys_label'))
+        if hasattr(self, 'label_skip_empty_keys'):
+            self.label_skip_empty_keys.setText(get_translation(self.current_language, 'skip_empty_keys_label'))
+        if hasattr(self, 'label_filter_name'):
+            self.label_filter_name.setText(get_translation(self.current_language, 'filter_name'))
+            
+        # Обновляем элементы поиска и замены
+        if hasattr(self, 'search_label'):
+            self.search_label.setText(get_translation(self.current_language, 'search_label'))
+        if hasattr(self, 'search_input'):
+            self.search_input.setPlaceholderText(get_translation(self.current_language, 'search_placeholder'))
+        if hasattr(self, 'replace_label'):
+            self.replace_label.setText(get_translation(self.current_language, 'replace_label'))
+        if hasattr(self, 'replace_input'):
+            self.replace_input.setPlaceholderText(get_translation(self.current_language, 'replace_placeholder'))
+        if hasattr(self, 'replace_btn'):
+            self.replace_btn.setText(get_translation(self.current_language, 'replace_btn'))
+        if hasattr(self, 'replace_all_btn'):
+            self.replace_all_btn.setText(get_translation(self.current_language, 'replace_all_btn'))
+        if hasattr(self, 'update_search_matches_label'):
+            self.update_search_matches_label()
+        
+        # Обновляем заголовок окна
+        self.setWindowTitle(get_translation(self.current_language, 'window_title', version=VersionInfo.CURRENT))
+
+        # Кнопка настроек
+        if hasattr(self, 'btn_settings'):
+            self.btn_settings.text = get_translation(self.current_language, 'settings_btn')
+            try:
+                self.btn_settings.update()
+            except:
+                pass
+
+        # Обновляем открытую панель настроек
+        if hasattr(self, 'settings_window') and self.settings_window:
+            try:
+                self.settings_window.retranslate_ui(self.current_language)
+            except:
+                pass
+        
+        # Обновляем группы фильтров
+        if hasattr(self, 'filters_group'):
+            self.filters_group.setTitle(get_translation(self.current_language, 'filters_group'))
+        
+        if hasattr(self, 'preview_group'):
+            # Убираем заголовок группы предпросмотра — используем отдельную фиксированную шапку
+            try:
+                self.preview_group.setTitle("")
+            except Exception:
+                pass
+
+        # Обновляем заголовки внутри панели предпросмотра (если созданы)
+        self.update_file_labels()
+        self.update_preview_header_texts()
+
+        # Обновляем аудиоплеер, если он открыт
+        if hasattr(self, 'audio_player') and self.audio_player:
+            self.audio_player.retranslate_ui(self.current_language)
+            
+        # Логируем обновление только если это не происходит во время инициализации
+        if not getattr(self, 'is_initializing', False):
+            print(f"OK: Interface updated to {self.current_language.upper()}")
+        
+        # Принудительно обновляем отображение
+        self.update_display()
+
+    def on_preview_ref_combo_changed(self, index):
+        """Обрабатывает выбор новой референсной локали из выпадающего списка предпросмотра."""
+        if getattr(self, '_suppress_preview_update', False):
+            return
+            
+        if hasattr(self, 'preview_header_ref_combo') and index >= 0:
+            new_locale = self.preview_header_ref_combo.currentText()
+            if new_locale != getattr(self, 'reference_locale', 'DEFAULT'):
+                # Устанавливаем _reference_locale напрямую, чтобы не вызывать сеттер-цикл
+                self._reference_locale = new_locale
+                
+                # Загружаем данные для новой референсной локали, если открыт файл архива
+                if hasattr(self, 'current_miz_path') and self.current_miz_path:
+                    try:
+                        if hasattr(self, 'reference_loader'):
+                            self.reference_data = self.reference_loader.load_locale_from_miz(
+                                self.current_miz_path, new_locale
+                            )
+                            # Показываем предупреждение если локаль не найдена и использован DEFAULT
+                            if getattr(self.reference_loader, 'last_fallback', None):
+                                fb = self.reference_loader.last_fallback
+                                lang = getattr(self, 'current_language', 'en')
+                                from localization import get_translation
+                                warn_msg = get_translation(lang, 'status_ref_locale_fallback', locale=fb)
+                                self.statusBar().showMessage(warn_msg)
+                                # Через 5 секунд восстанавливаем сообщение о строках
+                                from PyQt5.QtCore import QTimer
+                                try:
+                                    restore_msg = get_translation(lang, 'status_mission_lines_loaded', count=len(self.original_lines))
+                                    QTimer.singleShot(5000, lambda: self.statusBar().showMessage(restore_msg))
+                                except Exception:
+                                    QTimer.singleShot(5000, lambda: self.statusBar().clearMessage())
+                    except Exception as e:
+                        print(f"Error loading reference locale data: {e}")
+                        
+                self.update_preview()
+
+    def update_preview_reference_combo(self, locales_list, is_initial_load=False):
+        """Обновляет список доступных локалей в выпадающем списке предпросмотра."""
+        if not hasattr(self, 'preview_header_ref_combo'):
+            return
+            
+        self.preview_header_ref_combo.blockSignals(True)
+        try:
+            # Загружаем настройку по умолчанию из файла
+            default_locale = getattr(self, 'settings_reference_locale', 'DEFAULT')
+            
+            # Решаем, какую локаль выбрать
+            # Если это первичная загрузка файла — ВСЕГДА берем из настроек
+            if is_initial_load:
+                current_locale = default_locale
+                old_locale = None
+            else:
+                # Иначе пытаемся сохранить текущий выбор из комбобокса
+                current_locale = self.preview_header_ref_combo.currentText()
+                old_locale = current_locale
+                if not current_locale:
+                    current_locale = default_locale
+                
+            self.preview_header_ref_combo.clear()
+            
+            for locale in locales_list:
+                self.preview_header_ref_combo.addItem(locale)
+                
+            # Если целевой локали нет в списке (например, EN в настройках, но в файле её нет), 
+            # то fallback к DEFAULT или первой доступной
+            if current_locale not in locales_list:
+                current_locale = default_locale if default_locale in locales_list else ('DEFAULT' if 'DEFAULT' in locales_list else (locales_list[0] if locales_list else 'DEFAULT'))
+                
+            # Находим индекс целевой локали
+            idx = self.preview_header_ref_combo.findText(current_locale)
+            
+            if idx >= 0:
+                self.preview_header_ref_combo.setCurrentIndex(idx)
+                self._reference_locale = current_locale
+            else:
+                # Финальный fallback (на случай если даже DEFAULT нет)
+                if self.preview_header_ref_combo.count() > 0:
+                    self.preview_header_ref_combo.setCurrentIndex(0)
+                    self._reference_locale = self.preview_header_ref_combo.currentText()
+                    
+            # Триггерим загрузку данных только если локаль действительно изменилась
+            # или если это первичная загрузка
+            if is_initial_load or current_locale != old_locale:
+                self.on_preview_ref_combo_changed(self.preview_header_ref_combo.currentIndex())
+        finally:
+            self.preview_header_ref_combo.blockSignals(False)
+        
+    def update_preview_header_texts(self):
+        """Обновляет тексты заголовков шапки предпросмотра (локализованные и динамические)."""
+        # Если установлен флаг подавления — не обновляем шапку/предпросмотр
+        if getattr(self, '_suppress_preview_update', False):
+            return
+        try:
+            if hasattr(self, 'preview_header_meta'):
+                self.preview_header_meta.setText(get_translation(self.current_language, 'preview_header_meta'))
+
+            if hasattr(self, 'preview_header_ref'):
+                ref_text = get_translation(self.current_language, 'preview_header_ref')
+                self.preview_header_ref.setText(ref_text)
+
+            if hasattr(self, 'preview_header_editor'):
+                # Определяем локаль для заголовка: .cmp (Row 1) или .miz (Row 2)
+                is_cmp = self.current_file_path and self.current_file_path.lower().endswith('.cmp')
+                if is_cmp and hasattr(self, 'file_locale_combo') and self.file_locale_combo.count() > 0:
+                    editor_locale = self.file_locale_combo.currentText()
+                else:
+                    editor_locale = (self.miz_locale_combo.currentText() if hasattr(self, 'miz_locale_combo') and self.miz_locale_combo.count() > 0 
+                                     else getattr(self, 'current_miz_folder', 'DEFAULT'))
+                
+                editor_text = get_translation(self.current_language, 'preview_header_editor', locale=f"<span style='color:#ff9900'>{editor_locale}</span>")
+                self.preview_header_editor.setText(editor_text)
+
+            # Синхронизируем комбобокс референса с текущей настройкой, если нет загруженных данных
+            if hasattr(self, 'preview_header_ref_combo') and self.preview_header_ref_combo.count() <= 1:
+                ref_loc = getattr(self, 'reference_locale', 'DEFAULT')
+                if self.preview_header_ref_combo.count() == 0:
+                    self.preview_header_ref_combo.addItem(ref_loc)
+                else:
+                    self.preview_header_ref_combo.setItemText(0, ref_loc)
+                self.preview_header_ref_combo.setCurrentText(ref_loc)
+        except Exception:
+            pass
+
+        # Сделать рамку вокруг заголовков прозрачной (если необходимо)
+        if hasattr(self, 'headers_container'):
+            try:
+                self.headers_container.setStyleSheet('background-color: transparent; border: none;')
+            except Exception:
+                pass
+        
+        # Обновляем ТОЛЬКО запрошенные статические метки
+        if hasattr(self, 'additional_keys_label'):
+            self.additional_keys_label.setText(get_translation(self.current_language, 'additional_keys_label'))
+        if hasattr(self, 'skip_empty_label'):
+            self.skip_empty_label.setText(get_translation(self.current_language, 'skip_empty_label'))
+        if hasattr(self, 'original_text_header_label'):
+            self.original_text_header_label.setText(get_translation(self.current_language, 'original_text_label'))
+        if hasattr(self, 'translation_header_label'):
+            self.translation_header_label.setText(get_translation(self.current_language, 'translation_label'))
+        if hasattr(self, 'label_show_all'):
+            self.label_show_all.setText(get_translation(self.current_language, 'show_all_keys_label'))
+        if hasattr(self, 'label_skip_empty_keys'):
+            self.label_skip_empty_keys.setText(get_translation(self.current_language, 'skip_empty_keys_label'))
+        
+        # Обновляем новые элементы (Контекст ИИ и кнопки)
+        if hasattr(self, 'add_context_label_widget'):
+            self.add_context_label_widget.setText(get_translation(self.current_language, 'add_context_label'))
+        if hasattr(self, 'add_context_toggle'):
+            self.register_custom_tooltip(self.add_context_toggle, get_translation(self.current_language, 'tooltip_add_context'))
+            self.register_custom_tooltip(self.add_context_label_widget, get_translation(self.current_language, 'tooltip_add_context'))
+        if hasattr(self, 'instructions_btn'):
+            self.instructions_btn.setText(get_translation(self.current_language, 'instructions_btn'))
+            if hasattr(self, 'instructions_btn_width'):
+                self.instructions_btn.setFixedWidth(self.instructions_btn_width)
+        if hasattr(self, 'ai_context_mgmt_btn'):
+            self.ai_context_mgmt_btn.setText(get_translation(self.current_language, 'ai_context_mgmt_btn'))
+            if hasattr(self, 'ai_context_btn_width'):
+                self.ai_context_mgmt_btn.setFixedWidth(self.ai_context_btn_width)
+        
+        # Обновляем плейсхолдеры для произвольных фильтров
+
+        if hasattr(self, 'custom_filters'):
+            for i, custom_filter in enumerate(self.custom_filters):
+                if 'line_edit' in custom_filter:
+                    placeholder = get_translation(self.current_language, 'custom_filter_placeholder', index=i+1)
+                    custom_filter['line_edit'].setPlaceholderText(placeholder)
+        
+        # Обновляем строку статуса, если файл еще не открыт
+        if not self.current_file_path:
+            self.statusBar().showMessage(get_translation(self.current_language, 'status_ready'))
+        
+        # Обновляем заголовки панелей текста
+        if hasattr(self, 'english_count_label'):
+            self.english_count_label.setText(get_translation(self.current_language, 'english_count_label', count=len(self.original_lines) if self.original_lines else 0))
+        if hasattr(self, 'russian_count_label'):
+            filled = sum(1 for line in self.original_lines if line['translated_text'].strip()) if self.original_lines else 0
+            total = len(self.original_lines) if self.original_lines else 0
+            self.russian_count_label.setText(get_translation(self.current_language, 'russian_count_label', filled=filled, total=total))
+        if hasattr(self, 'stats_label'):
+            self.update_translation_stats()
+        if hasattr(self, 'preview_info'):
+            self.preview_info.setText(get_translation(self.current_language, 'preview_info', count=len(self.original_lines) if self.original_lines else 0))
+        
+        # Обновляем метки поиска
+        if hasattr(self, 'search_label'):
+            self.search_label.setText(get_translation(self.current_language, 'search_label'))
+        if hasattr(self, 'search_input'):
+            self.search_input.setPlaceholderText(get_translation(self.current_language, 'search_placeholder'))
+        if hasattr(self, 'search_matches_label'):
+            self.update_search_matches_label()
+        
+        # Обновляем тултипы для кнопок и элементов (кастомный стиль)
+        if hasattr(self, 'drag_label'):
+            self.register_custom_tooltip(self.drag_label, get_translation(self.current_language, 'tooltip_drag'), side='right')
+        
+        if hasattr(self, 'logo_label'):
+            self.register_custom_tooltip(self.logo_label, get_translation(self.current_language, 'tooltip_about_program'), side='cursor')
+        
+        if hasattr(self, 'open_unified_btn'): self.unregister_custom_tooltip(self.open_unified_btn)
+        if hasattr(self, 'save_file_btn'): self.unregister_custom_tooltip(self.save_file_btn)
+        if hasattr(self, 'instructions_btn'): self.unregister_custom_tooltip(self.instructions_btn)
+        if hasattr(self, 'ai_context_mgmt_btn'): self.unregister_custom_tooltip(self.ai_context_mgmt_btn)
+        if hasattr(self, 'copy_all_btn'): self.unregister_custom_tooltip(self.copy_all_btn)
+        if hasattr(self, 'show_keys_btn'): self.unregister_custom_tooltip(self.show_keys_btn)
+        if hasattr(self, 'paste_btn'): self.unregister_custom_tooltip(self.paste_btn)
+        if hasattr(self, 'clear_btn'): self.unregister_custom_tooltip(self.clear_btn)
+        if hasattr(self, 'default_filters_btn'): self.unregister_custom_tooltip(self.default_filters_btn)
+        if hasattr(self, 'view_log_btn'): self.unregister_custom_tooltip(self.view_log_btn)
+        if hasattr(self, 'add_context_toggle'): 
+            self.unregister_custom_tooltip(self.add_context_toggle)
+            self.add_context_toggle.setToolTip("")
+        
+        # Обновляем тултипы для меток (кастомный стиль)
+        if hasattr(self, 'add_context_label_widget'):
+            self.register_custom_tooltip(self.add_context_label_widget, get_translation(self.current_language, 'tooltip_add_context'))
+        
+        # Обновление текста тоггла синхронизации
+        if hasattr(self, 'sync_scroll_label_widget'):
+            self.sync_scroll_label_widget.setText(get_translation(self.current_language, 'sync_scroll_label'))
+            self.register_custom_tooltip(self.sync_scroll_label_widget, get_translation(self.current_language, 'tooltip_sync_scroll'))
+        
+        # Обновляем новые кнопки инструментов
+        if hasattr(self, 'btn_radio'):
+            self.btn_radio.text = get_translation(self.current_language, 'btn_radio')
+            self.btn_radio.update()
+        if hasattr(self, 'btn_files'):
+            self.btn_files.text = get_translation(self.current_language, 'btn_files')
+            self.btn_files.update()
+        if hasattr(self, 'btn_tts'):
+            self.btn_tts.text = get_translation(self.current_language, 'tts_btn')
+            self.btn_tts.update()
+        if hasattr(self, 'btn_briefing'):
+            self.btn_briefing.text = get_translation(self.current_language, 'btn_briefing')
+            self.btn_briefing.update()
+
+        # Принудительно переприменяем стили для всех кнопок, чтобы избежать "прямоугольного" бага
+        for btn in [self.open_unified_btn, self.save_file_btn]:
+            btn.setStyleSheet(btn.styleSheet())
+        
+        if hasattr(self, 'copy_all_btn'): self.copy_all_btn.setStyleSheet(self.copy_all_btn.styleSheet())
+        if hasattr(self, 'show_keys_btn'): self.show_keys_btn.setStyleSheet(self.show_keys_btn.styleSheet())
+        if hasattr(self, 'paste_btn'): self.paste_btn.setStyleSheet(self.paste_btn.styleSheet())
+        if hasattr(self, 'clear_btn'): self.clear_btn.setStyleSheet(self.clear_btn.styleSheet())
+        if hasattr(self, 'instructions_btn'): self.instructions_btn.setStyleSheet(self.instructions_btn.styleSheet())
+        if hasattr(self, 'ai_context_mgmt_btn'): self.ai_context_mgmt_btn.setStyleSheet(self.ai_context_mgmt_btn.styleSheet())
+
+        # Переподключаем тултипы
+        # if hasattr(self, 'open_unified_btn'): self.register_custom_tooltip(self.open_unified_btn, get_translation(self.current_language, 'open_unified_btn'))
+        # if hasattr(self, 'save_file_btn'): self.register_custom_tooltip(self.save_file_btn, get_translation(self.current_language, 'tooltip_save_file'))
+        # if hasattr(self, 'instructions_btn'): self.register_custom_tooltip(self.instructions_btn, get_translation(self.current_language, 'tooltip_instructions'))
+        # if hasattr(self, 'ai_context_mgmt_btn'): self.register_custom_tooltip(self.ai_context_mgmt_btn, get_translation(self.current_language, 'tooltip_ai_context'))
+        # if hasattr(self, 'copy_all_btn'): self.register_custom_tooltip(self.copy_all_btn, get_translation(self.current_language, 'tooltip_copy_all'))
+        # if hasattr(self, 'show_keys_btn'): self.register_custom_tooltip(self.show_keys_btn, get_translation(self.current_language, 'tooltip_show_keys'))
+        # if hasattr(self, 'paste_btn'): self.register_custom_tooltip(self.paste_btn, get_translation(self.current_language, 'tooltip_paste'))
+        # if hasattr(self, 'clear_btn'): self.register_custom_tooltip(self.clear_btn, get_translation(self.current_language, 'tooltip_clear'))
+        # if hasattr(self, 'default_filters_btn'): self.register_custom_tooltip(self.default_filters_btn, get_translation(self.current_language, 'tooltip_default_filters'))
+        # if hasattr(self, 'view_log_btn'): self.register_custom_tooltip(self.view_log_btn, get_translation(self.current_language, 'tooltip_view_log'))
+
+    def update_file_labels(self):
+        """Обновляет метки открытых файлов с сокращением длинных путей и тултипами"""
+        if not hasattr(self, 'selected_file_label') or not hasattr(self, 'selected_miz_label'):
+            return
+
+        # Обновление метки обычного файла
+        if self.current_file_path and self.selected_file_label.isVisible():
+            filename = os.path.basename(self.current_file_path)
+            is_cmp = self.current_file_path.lower().endswith('.cmp')
+            
+            prefix_key = 'campaign_label' if is_cmp else 'file_label'
+            self.file_prefix_label.setText(get_translation(self.current_language, prefix_key))
+            
+            # Показываем/скрываем элементы локализации для .cmp
+            self.file_loc_prefix_label.setVisible(is_cmp)
+            self.file_locale_combo.setVisible(is_cmp)
+            
+            self.update_delete_button_visibility()
+            
+            if is_cmp:
+                # Обновление комбобокса (аналогично .miz)
+                self.file_locale_combo.blockSignals(True)
+                # Если пустой, добавим текущую
+                if self.file_locale_combo.count() == 0 and getattr(self, 'current_miz_folder', 'DEFAULT'):
+                    self.file_locale_combo.addItem(getattr(self, 'current_miz_folder', 'DEFAULT'))
+                
+                self.file_locale_combo.setCurrentText(getattr(self, 'current_miz_folder', 'DEFAULT'))
+                self.file_locale_combo.blockSignals(False)
+            
+            # Сокращаем только имя файла
+            metrics = QFontMetrics(self.file_prefix_label.font())
+            prefix_width = metrics.horizontalAdvance(self.file_prefix_label.text()) + 10
+            
+            loc_width = 0
+            if is_cmp:
+                loc_metrics = QFontMetrics(self.file_loc_prefix_label.font())
+                loc_width = loc_metrics.horizontalAdvance(self.file_loc_prefix_label.text()) + \
+                            self.file_locale_combo.width() + self.file_delete_locale_btn.width() + 20
+                            
+            name_max_width = max(100, 700 - prefix_width - loc_width)
+            
+            elided_name = self.elide_label_text(self.file_name_label, filename, name_max_width)
+            self.file_name_label.setText(elided_name)
+            
+            # Единый тултип на "Файл/Кампания:" + Название
+            self.register_custom_tooltip(self.file_info_container, self.current_file_path, side='bottom-left')
+            
+            # Убираем лишние тултипы
+            if hasattr(self, 'unregister_custom_tooltip'):
+                self.unregister_custom_tooltip(self.selected_file_label)
+                self.unregister_custom_tooltip(self.file_prefix_label)
+
+        # Обновление метки .miz файла
+        if self.current_miz_path and self.selected_miz_label.isVisible():
+            filename = os.path.basename(self.current_miz_path)
+            folder = getattr(self, 'current_miz_folder', 'DEFAULT')
+            
+            self.mission_prefix_label.setText(get_translation(self.current_language, 'mission_label'))
+            self.loc_prefix_label.setText(get_translation(self.current_language, 'localization_label'))
+            
+            # Обновление комбобокса
+            self.miz_locale_combo.blockSignals(True)
+            if self.miz_locale_combo.count() == 0 and self.current_miz_folder:
+                 self.miz_locale_combo.addItem(self.current_miz_folder)
+            
+            if self.current_miz_folder:
+                self.miz_locale_combo.setCurrentText(self.current_miz_folder)
+            self.miz_locale_combo.blockSignals(False)
+            
+            # Рассчитываем ширины для сокращения
+            metrics = QFontMetrics(self.mission_prefix_label.font())
+            p1_w = metrics.horizontalAdvance(self.mission_prefix_label.text())
+            p2_w = metrics.horizontalAdvance(self.loc_prefix_label.text())
+            f_w = metrics.horizontalAdvance(self.miz_locale_combo.currentText())
+            
+            # Остаток для имени миссии (общий лимит 700)
+            name_max_width = max(100, 700 - p1_w - p2_w - f_w - 30) # -30 на зазоры
+            
+            elided_name = self.elide_label_text(self.mission_name_label, filename, name_max_width)
+            self.mission_name_label.setText(elided_name)
+            
+            # Единый тултип на весь контейнер (Миссия + Название)
+            self.register_custom_tooltip(self.mission_info_container, self.current_miz_path, side='bottom-left')
+            
+            # Убираем лишние тултипы
+            if hasattr(self, 'unregister_custom_tooltip'):
+                self.unregister_custom_tooltip(self.selected_miz_label)
+                self.unregister_custom_tooltip(self.mission_prefix_label)
+                self.unregister_custom_tooltip(self.mission_name_label)
+                self.unregister_custom_tooltip(self.miz_locale_combo)
+                self.unregister_custom_tooltip(self.delete_locale_btn)
+
+    def elide_label_text(self, label, text, max_width):
+        """Вспомогательная функция для сокращения текста с многоточием"""
+        metrics = QFontMetrics(label.font())
+        if metrics.horizontalAdvance(text) <= max_width:
+            return text
+        return metrics.elidedText(text, Qt.ElideMiddle, max_width)
+    
+    def apply_preview_font_settings(self):
+        """Применяет настройки шрифта ко всем существующим виджетам предпросмотра"""
+        if not hasattr(self, 'preview_layout'):
+            return
+            
+        font = QFont(self.preview_font_family, self.preview_font_size)
+        
+        # Проходим по всем элементам в layout предпросмотра
+        from widgets import PreviewTextEdit
+        for i in range(self.preview_layout.count()):
+            item = self.preview_layout.itemAt(i)
+            if item.widget():
+                # Ищем PreviewTextEdit внутри строк
+                row_widget = item.widget()
+                for child in row_widget.findChildren(PreviewTextEdit):
+                    child.setFont(font)
+                    # Также форсируем обновление высоты если нужно
+                    if hasattr(child, 'on_content_changed'):
+                        child.on_content_changed()
+        
+
+
+    def update_translation_stats(self):
+        """Update translation statistics in the preview panel"""
+        if not hasattr(self, 'stats_label') or not self.original_lines:
+            return
+        
+        # Count non-empty original lines
+        to_translate = sum(1 for line in self.original_lines if line.get('original_text', '').strip())
+        
+        # Count translated lines (non-empty translation)
+        translated = sum(1 for line in self.original_lines 
+                         if line.get('original_text', '').strip() and 
+                            line.get('translated_text', '').strip())
+        
+        # Count untranslated lines
+        not_translated = to_translate - translated
+        
+        # Dynamic color for "Not translated": saved_color if 0, red if > 0
+        saved_color = getattr(self, 'theme_text_saved', '#2ecc71')
+        not_translated_color = saved_color if not_translated == 0 else '#e74c3c'
+        
+        # Build colored HTML text
+        stats_text = (
+            f"<span style='color: white;'>{get_translation(self.current_language, 'stats_to_translate', count=to_translate)}</span>"
+            f"<span style='color: #888;'> | </span>"
+            f"<span style='color: {saved_color};'>{get_translation(self.current_language, 'stats_translated', count=translated)}</span>"
+            f"<span style='color: #888;'> | </span>"
+            f"<span style='color: {not_translated_color};'>{get_translation(self.current_language, 'stats_not_translated', count=not_translated)}</span>"
+        )
+        
+        self.stats_label.setText(stats_text)
+    
+    def dragEnterEvent(self, event):
+        """Обработка перетаскивания файла в окно"""
+        if event.mimeData().hasUrls():
+            urls = event.mimeData().urls()
+            if urls and urls[0].isLocalFile():
+                file_path = urls[0].toLocalFile()
+                ext = os.path.splitext(file_path)[1].lower()
+                # Принимаем только поддерживаемые форматы
+                if ext in ('.miz', '.txt', '.lua', '.cmp'):
+                    event.accept()
+                    return
+        event.ignore()
+
+    def dropEvent(self, event):
+        """Обработка отпускания файла (Drop) в окно"""
+        urls = event.mimeData().urls()
+        if not urls:
+            return
+            
+        file_path = urls[0].toLocalFile()
+        if not file_path or not os.path.exists(file_path):
+            return
+            
+        # Проверяем расширение файла еще раз перед открытием
+        ext = os.path.splitext(file_path)[1].lower()
+        
+        if ext == '.miz':
+            self.open_miz_file(preselected_path=file_path)
+        elif ext in ('.txt', '.lua', '.cmp'):
+            self.open_file(preselected_path=file_path)
+        else:
+            # Игнорируем неподдерживаемые типы
+            event.ignore()
+            
+    def open_any_file(self):
+        """Единый диалог открытия файла для любых поддерживаемых форматов"""
+        if getattr(self, 'has_unsaved_changes', False):
+            if not self.show_exit_confirmation_dialog(mode='open_new'):
+                return
+                
+        start_folder = getattr(self, 'last_open_folder', '')
+        options = QFileDialog.Options()
+        options |= QFileDialog.DontUseCustomDirectoryIcons
+        file_filter = (
+            "Поддерживаемые файлы (*.miz *.cmp dictionary *.txt);;"
+            "Миссии DCS (*.miz);;"
+            "Кампании DCS (*.cmp);;"
+            "Словари (dictionary *.txt);;"
+            "Все файлы (*)"
+        )
+        
+        file_path, _ = QFileDialog.getOpenFileName(
+            self, 
+            get_translation(self.current_language, 'open_unified_btn'), 
+            start_folder, 
+            file_filter,
+            options=options
+        )
+        
+        if not file_path:
+            return
+            
+        self.last_open_folder = os.path.dirname(file_path)
+        self.save_settings(update_ui=False, update_preview=False)
+        
+        # Определяем тип файла по расширению или имени
+        ext = os.path.splitext(file_path)[1].lower()
+        if ext == '.miz':
+            self.open_miz_file(preselected_path=file_path)
+        else:
+            self.open_file(preselected_path=file_path)
+    
+    # [FILE_PARSING] - ПЕРЕРАБОТАННЫЙ ПАРСЕР
+    def open_file(self, preselected_path=None):
+        """Открывает файл для перевода (обычный файл, не .miz)"""
+        if getattr(self, 'has_unsaved_changes', False):
+            if not self.show_exit_confirmation_dialog(mode='open_new'):
+                return
+        try:
+            if preselected_path and os.path.exists(preselected_path):
+                file_path = preselected_path
+            else:
+                start_folder = getattr(self, 'last_open_folder', '')
+                options = QFileDialog.Options()
+                options |= QFileDialog.DontUseCustomDirectoryIcons
+                file_path, _ = QFileDialog.getOpenFileName(
+                    self, 'Открыть файл', start_folder, 'Все поддерживаемые (*.txt *.lua *.cmp);;Текстовые файлы (*.txt);;Lua файлы (*.lua);;Файлы кампаний (*.cmp);;Все файлы (*)', options=options)
+                
+                if not file_path:
+                    return
+            
+            self.clear_current_data()
+            self.last_open_folder = os.path.dirname(file_path)
+            self.save_settings()
+            self.current_miz_path = None
+            self.current_file_path = file_path
+            self.load_bookmarks(file_path)
+            self.add_to_recent(file_path)
+
+            
+            try:
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    self.original_content = f.read()
+                
+                # Проверяем расширение файла
+                is_cmp = file_path.lower().endswith('.cmp')
+                
+                # Проверяем, является ли это dictionary файлом или файлом кампании
+                if is_cmp:
+                    # Отключаем кнопку брифинга для файлов кампаний
+                    if hasattr(self, 'btn_briefing'):
+                        self.btn_briefing.setEnabled(False)
+                    
+                    from parserCMP import CampaignParser
+                    temp_parser = CampaignParser()
+                    # Сначала просто парсим чтобы узнать доступные локали
+                    all_cmp_data = temp_parser.parse_content(self.original_content)
+                    
+                    l10n_folders = set()
+                    for line_data in all_cmp_data:
+                        base, lang = temp_parser._split_key(line_data['key'])
+                        l10n_folders.add(lang)
+                    
+                    found_locales = sorted(list(l10n_folders))
+                    target_locale = None
+                    
+                    # Если найдено несколько локалей (или одна но не DEFAULT), спрашиваем пользователя
+                    if len(found_locales) > 1 or (len(found_locales) == 1 and "DEFAULT" not in found_locales):
+                        if getattr(self, 'skip_locale_dialog', False):
+                            # Проверяем наличие запрашиваемой локали
+                            target = getattr(self, 'default_open_locale', 'DEFAULT')
+                            if target in found_locales:
+                                target_locale = target
+                            elif "DEFAULT" in found_locales:
+                                target_locale = "DEFAULT"
+                            elif found_locales:
+                                target_locale = found_locales[0]
+                        else:
+                            dialog_default = getattr(self, 'default_open_locale', 'DEFAULT')
+                            dialog = MizFolderDialog(found_locales, self.current_language, self, default_selection=dialog_default)
+                            if dialog.exec_() == QDialog.Accepted:
+                                target_locale = dialog.selected_folder
+                                print(f"DEBUG: User selected CMP locale: {target_locale}")
+                            else:
+                                print("DEBUG: CMP locale selection cancelled")
+                                self.current_file_path = None
+                                return
+                    
+                    self.parse_cmp_file(self.original_content, target_locale=target_locale)
+                    # update_miz_locale_combo внутри parse_cmp_file уже обновит референс-комбо с флагом is_initial_load=True
+                elif '["' in self.original_content and '"] = "' in self.original_content:
+                    self.is_dictionary_mode = True
+                    self.parse_dictionary_file(self.original_content)
+                    self.update_preview_reference_combo([])
+                    # При открытии словаря (dictionary) тоже включаем брифинг, 
+                    # так как это может быть словарь миссии
+                    if hasattr(self, 'btn_briefing'):
+                        self.btn_briefing.setEnabled(True)
+                else:
+                    # Простой текстовый файл
+                    self.parse_text_file(self.original_content)
+                    self.update_preview_reference_combo([], is_initial_load=True)
+                
+                if self.all_lines_data:
+                    self.apply_filters()
+                    self.save_file_btn.setEnabled(True)
+                    
+                    # Обновляем надписи о файлах
+                    self.selected_file_label.setVisible(True)
+                    self.selected_miz_label.setVisible(False)
+                    self.update_file_labels()
+                    self.update_preview_header_texts()
+                    
+                    # Инициализируем original_translated_text для отслеживания правок для ВСЕХ строк
+                    for line in self.all_lines_data:
+                        line['original_translated_text'] = line.get('translated_text', '')
+                    
+                    self.statusBar().showMessage(get_translation(self.current_language, 'status_lines_loaded', count=len(self.original_lines)))
+                    self.set_modified(False)
+                    
+                    # Если после фильтрации строк нет, показываем информационное окно
+                    if not self.original_lines:
+                        self.show_custom_dialog(
+                            get_translation(self.current_language, 'error_title'),
+                            get_translation(self.current_language, 'error_no_lines_found'),
+                            "info"
+                        )
+                else:
+                    # Используем кастомный диалог
+                    self.show_custom_dialog(
+                        get_translation(self.current_language, 'error_title'),
+                        get_translation(self.current_language, 'error_no_lines_found'),
+                        "info"
+                    )
+                    
+            except UnicodeDecodeError as e:
+                error_msg = f"Ошибка кодировки файла: {str(e)}"
+                ErrorLogger.log_error("FILE_ENCODING", error_msg, f"Файл: {file_path}")
+                
+                self.show_custom_dialog(
+                    get_translation(self.current_language, 'error_title_encoding'),
+                    f"{get_translation(self.current_language, 'error_utf8_read')}\n\n"
+                    f"{get_translation(self.current_language, 'error_utf8_convert')}\n\n"
+                    f"{get_translation(self.current_language, 'error_details', details=str(e))}",
+                    "error"
+                )
+            except Exception as e:
+                error_msg = f"Ошибка чтения файла: {str(e)}"
+                ErrorLogger.log_error("FILE_READ", error_msg, f"Файл: {file_path}")
+                
+                self.show_custom_dialog(
+                    get_translation(self.current_language, 'error_title'),
+                    f"{get_translation(self.current_language, 'file_read_error')}: {str(e)}\n\n"
+                    f"{get_translation(self.current_language, 'tooltip_view_log')}: {ErrorLogger.LOG_FILE}",
+                    "error"
+                )
+                
+        except Exception as e:
+            error_msg = f"Общая ошибка при открытии файла: {str(e)}"
+            ErrorLogger.log_error("FILE_OPEN", error_msg)
+            self.show_custom_dialog("Ошибка", error_msg, "error")
+    
+    def parse_dictionary_file(self, content):
+        """Парсит dictionary используя новый парсер LuaDictionaryParser"""
+        import tempfile
+
+        # Создаем временный файл для парсера
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.lua', delete=False, encoding='utf-8') as f:
+            f.write(content)
+            temp_file = f.name
+
+        try:
+            # Используем новый парсер
+            self.dictionary_parser = LuaDictionaryParser()
+            entries = self.dictionary_parser.parse_file(temp_file)
+
+            # Подготавливаем данные для редактирования
+            editing_dict = self.dictionary_parser.prepare_for_editing()
+
+            # Формируем all_lines_data (сохраняя совместимость с остальным кодом)
+            self.all_lines_data = []
+            self.original_lines = []
+
+            
+
+            line_number = 0
+            for key, (text_parts, file_lines, absolute_start_line) in entries.items():
+                # Вычисляем, весь ли ключ пустой (все части пустые)
+                key_all_empty = all(not (p and p.strip()) for p in text_parts)
+
+                for part_index, part in enumerate(text_parts):
+                    # Проверяем нужно ли переводить эту строку
+                    should_translate = self._should_translate_key(key)
+
+                    # Проверяем, пустая ли строка
+                    is_empty = not part.strip()
+
+                    line_data = {
+                        'key': key,
+                        'original_text': part,
+                        'display_text': part,
+                        'translated_text': part,
+                        'full_match': file_lines[part_index] if part_index < len(file_lines) else '',
+                        'indent': '',
+                        'start_pos': line_number if should_translate else absolute_start_line + part_index,
+                        'end_pos': (line_number + 1) if should_translate else (absolute_start_line + part_index + 1),
+                        'file_line_index': absolute_start_line + part_index, # Абсолютный индекс для системы
+                        'should_translate': should_translate,
+                        'is_empty': is_empty,
+                        'key_all_empty': key_all_empty,
+                        'ends_with_backslash': part.endswith('\\') if part else False,
+                        'is_multiline': False,
+                        'display_line_index': 0,
+                        'total_display_lines': 1,
+                        'original_translated_text': '', # Будет заполнено при загрузке локали
+                        'part_index': part_index  # Оригинальная позиция внутри ключа
+                    }
+
+                    self.all_lines_data.append(line_data)
+
+                    # Если строка пустая - фильтруем (если включен фильтр)
+                    should_filter = is_empty and self.filter_empty
+                    include_in_original = should_translate and not should_filter
+                    
+                    # Если ключ полностью пустой и включен фильтр пропуска пустых ключей, не добавляем
+                    if key_all_empty and getattr(self, 'filter_empty_keys', True):
+                        include_in_original = False
+
+                    if include_in_original:
+                        self.original_lines.append(line_data)
+                        line_number += 1
+
+            print(f"[STAT] Found lines in file: {len(self.all_lines_data)}")
+            print(f"[STAT] Lines for translation: {len(self.original_lines)}")
+
+        finally:
+            # Удаляем временный файл
+            if os.path.exists(temp_file):
+                os.unlink(temp_file)
+
+
+    def save_cmp_file(self, target_path):
+        """Сохраняет файл кампании (.cmp) со всеми локализациями по указанному пути"""
+        # Сначала принудительно синхронизируем правки из предпросмотра
+        self.apply_pending_preview_sync()
+        
+        if not self.current_file_path:
+            return False
+
+        try:
+            from parserCMP import CampaignParser
+            parser = CampaignParser()
+            
+            # Сохраняем текущее состояние в память перед сохранением всего файла
+            if self.current_miz_folder:
+                self.miz_trans_memory[self.current_miz_folder] = {
+                    'original_lines': copy.deepcopy(self.original_lines),
+                    'all_lines_data': copy.deepcopy(self.all_lines_data),
+                    'original_content': self.original_content
+                }
+
+            # Собираем ВСЕ переводы из ВСЕХ локалей в памяти
+            # Ключи в памяти могут быть в формате DEFAULT (name, description),
+            # поэтому преобразуем их в формат с суффиксом локали (name_RU, description_RU)
+            translations = {}
+            for lang, memory in self.miz_trans_memory.items():
+                for line in memory['all_lines_data']:
+                    raw_key = line['key']
+                    
+                    # Определяем правильный ключ для сохранения
+                    if lang == "DEFAULT":
+                        save_key = raw_key  # name, description — как есть
+                    else:
+                        # Проверяем, содержит ли ключ уже суффикс локали
+                        base, existing_lang = parser._split_key(raw_key)
+                        if existing_lang == "DEFAULT":
+                            # Ключ без суффикса — добавляем: name → name_RU
+                            save_key = f"{base}_{lang}"
+                        else:
+                            # Ключ уже содержит суффикс (name_RU) — оставляем
+                            save_key = raw_key
+                    
+                    val = line.get('translated_text')
+                    if val is None:
+                        val = line.get('original_text', '')
+                    
+                    # Если ключ уже есть - добавляем через newline (многострочное значение)
+                    if save_key in translations:
+                        translations[save_key] = translations[save_key] + '\n' + val
+                    else:
+                        translations[save_key] = val
+
+            # Читаем оригинал файла
+            with open(self.current_file_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+
+            supported_languages = parser.supported_languages
+            base_keys = parser.base_keys
+
+            new_content = content
+            processed_keys = set()
+            
+            # 1. Обновляем существующие ключи
+            all_langs_to_save = ['DEFAULT'] + supported_languages
+            for lang in all_langs_to_save:
+                for b_key in base_keys:
+                    full_key = b_key if lang == 'DEFAULT' else f"{b_key}_{lang}"
+                    val = translations.get(full_key, "")
+                    
+                    val_parts = val.split('\n')
+                    # Ищем и заменяем: ["KEY"] = "VALUE" или KEY = "VALUE"
+                    # re.MULTILINE нужен для привязки к началу строки (^), re.DOTALL для многострочных описаний
+                    pattern = r'(^[\t ]*(?:\[\"' + re.escape(full_key) + r'\"\]|' + re.escape(full_key) + r')\s*=\s*)(?:"(?:[^"\\]|\\.)*"|\[\[[\s\S]*?\]\])(,?)'
+                    
+                    # Ищем все вхождения (корень, вложенные миссии и т.д.)
+                    all_matches = list(re.finditer(pattern, new_content, re.MULTILINE | re.DOTALL))
+                    
+                    if all_matches:
+                        # Берем вхождение с МИНИМАЛЬНЫМ отступом (это корень кампании)
+                        best_match = min(all_matches, key=lambda m: len(m.group(1)))
+                        
+                        encoded_parts = [parser._encode_text(p) for p in val_parts]
+                        if len(encoded_parts) == 1:
+                            new_val_str = f'"{encoded_parts[0]}"'
+                        else:
+                            # Многострочный
+                            new_val_str = f'"{encoded_parts[0]}\\'
+                            for part in encoded_parts[1:-1]:
+                                new_val_str += f'\n{part}\\'
+                            new_val_str += f'\n{encoded_parts[-1]}"'
+                            
+                        # replacement = префикс (группа 1) + новое значение + постфикс (группа 2)
+                        replacement = f"{best_match.group(1)}{new_val_str}{best_match.group(2)}"
+                        
+                        # Заменяем именно этот конкретный фрагмент в тексте
+                        start, end = best_match.span()
+                        new_content = new_content[:start] + replacement + new_content[end:]
+                        processed_keys.add(full_key)
+            
+            # 2. Добавляем новые ключи (которых не было в файле)
+            lines_to_add = []
+            for lang in supported_languages: # DEFAULT обычно всегда есть, добавляем только локальные
+                lang_block = []
+                for b_key in base_keys:
+                    full_key = f"{b_key}_{lang}"
+                    # Проверяем: ключ не обработан И его нет в оригинальном файле
+                    key_pattern = f'["{full_key}"]'
+                    if full_key not in processed_keys and key_pattern not in content:
+                        val = translations.get(full_key, "")
+                        if val: # Добавляем только если есть значение
+                             val_parts = val.split('\n')
+                             lang_block.extend(parser.generate_lua_lines(full_key, val_parts))
+                
+                if lang_block:
+                    lines_to_add.append(f"\n    -- Localization {lang}")
+                    lines_to_add.extend(lang_block)
+
+            if lines_to_add:
+                # Вставляем перед последней скобкой
+                last_brace_idx = new_content.rfind('}')
+                if last_brace_idx != -1:
+                    insertion = "\n" + "\n".join(lines_to_add) + "\n"
+                    new_content = new_content[:last_brace_idx] + insertion + new_content[last_brace_idx:]
+                else:
+                    raise Exception("Не удалось найти структуру таблицы campaign в файле.")
+
+            # Сохраняем по целевому пути
+            with open(target_path, 'w', encoding='utf-8') as f:
+                f.write(new_content)
+            
+            # Сбрасываем индикацию после успешного сохранения
+            self.reset_modified_display_state()
+            
+            return True
+            
+        except Exception as e:
+            ErrorLogger.log_error("SAVE_CMP", str(e))
+            self.show_custom_dialog("Ошибка сохранения", str(e), "error")
+            return False
+
+    def handle_cmp_overwrite(self):
+        """Перезапись CMP файла с бэкапом"""
+        # Проверяем настройку
+        should_backup = getattr(self, 'create_backup', True)
+            
+        backup_path = None
+        if should_backup:
+             backup_path = self.create_backup_file(self.current_file_path)
+             
+        if self.save_cmp_file(self.current_file_path):
+             self.show_save_report(self.current_file_path, backup_path=backup_path)
+
+    def save_cmp_as(self):
+        """Сохранить .cmp как..."""
+        options = QFileDialog.Options()
+        options |= QFileDialog.DontUseCustomDirectoryIcons
+        file_path, _ = QFileDialog.getSaveFileName(
+            self, "Сохранить файл как", 
+            os.path.dirname(self.current_file_path), 
+            "Campaign Files (*.cmp)",
+            options=options
+        )
+        if file_path:
+             if self.save_cmp_file(file_path):
+                 self.show_custom_dialog(get_translation(self.current_language, 'success_title'), 
+                                         f"Файл сохранен: {file_path}", "info")
+
+    def show_cmp_save_dialog(self):
+        """Показывает диалог сохранения CMP (Overwrite / Save As) в стиле .miz с темным футером"""
+        # --- НАСТРОЙКИ РАЗМЕРОВ КНОПОК ---
+        miz_btn_width = 250       # Ширина основных кнопок
+        miz_cancel_width = 100    # Ширина кнопки отмена
+        # ---------------------------------
+        
+        dialog = CustomDialog(self)
+        dialog.setWindowTitle(get_translation(self.current_language, 'save_file_btn'))
+        dialog.setFixedWidth(450)
+        
+        # Стили диалога
+        dialog.setStyleSheet(f"""
+            QDialog {{
+                background-color: #3a3a3a;
+                color: #ddd;
+                border: 2px solid #ff9900;
+                border-radius: 10px;
+            }}
+            QLabel {{
+                color: #ffffff;
+                font-weight: bold;
+                font-size: 13px;
+                background-color: transparent;
+            }}
+            QPushButton {{
+                background-color: #ff9900;
+                color: #000000;
+                border: none;
+                padding: 10px 20px;
+                border-radius: 16px;
+                font-weight: bold;
+                font-size: 12px;
+                min-width: {miz_btn_width}px;
+                max-width: {miz_btn_width}px;
+                margin: 5px;
+            }}
+            QPushButton:hover {{
+                background-color: #e68a00;
+            }}
+            QPushButton:pressed {{
+                background-color: #cc7a00;
+            }}
+            QPushButton#cancelBtn {{
+                background-color: #ffffff;
+                color: #000000;
+                border: none;
+                padding: 5px 15px;
+                border-radius: 16px;
+                font-weight: bold;
+                font-size: 12px;
+                min-width: {miz_cancel_width}px;
+                max-width: {miz_cancel_width}px;
+                margin: 0px;
+            }}
+            QPushButton#cancelBtn:hover {{
+                background-color: #a3a3a3;
+            }}
+        """)
+        
+        # --- Очистка и настройка layout ---
+        if dialog.layout():
+            while dialog.layout().count():
+                child = dialog.layout().takeAt(0)
+                if child.widget():
+                    child.widget().deleteLater()
+            main_layout = dialog.layout()
+        else:
+            main_layout = QVBoxLayout(dialog)
+            
+        main_layout.setContentsMargins(2, 2, 2, 2)
+        main_layout.setSpacing(0)
+
+        # 1. Контент
+        content_widget = QWidget()
+        content_layout = QVBoxLayout(content_widget)
+        content_layout.setContentsMargins(30, 30, 30, 20)
+        content_layout.setSpacing(15)
+        
+        # Заголовок
+        title_container = QWidget()
+        title_layout = QVBoxLayout(title_container)
+        title_layout.setContentsMargins(0, 0, 0, 0)
+        title_layout.setSpacing(5)
+        title_layout.setAlignment(Qt.AlignCenter)
+        
+        title_text = QLabel(get_translation(self.current_language, 'campaign_file_label'))
+        title_text.setAlignment(Qt.AlignCenter)
+        title_layout.addWidget(title_text)
+        
+        full_filename = os.path.basename(self.current_file_path) if self.current_file_path else "campaign.cmp"
+        name_part, ext_part = os.path.splitext(full_filename)
+        display_name = (name_part[:40] + "..." + ext_part) if len(name_part) > 40 else full_filename
+        filename_label = QLabel(display_name)
+        filename_label.setAlignment(Qt.AlignCenter)
+        filename_label.setStyleSheet('color: #ff9900; background-color: transparent; border: none;')
+        title_layout.addWidget(filename_label)
+        content_layout.addWidget(title_container)
+        
+        # Инфо
+        info_label = QLabel(get_translation(self.current_language, 'save_dialog_info'))
+        info_label.setAlignment(Qt.AlignCenter)
+        info_label.setWordWrap(True)
+        content_layout.addWidget(info_label)
+        
+        # Кнопки
+        btns_container = QWidget()
+        btns_layout = QVBoxLayout(btns_container)
+        btns_layout.setAlignment(Qt.AlignCenter)
+        btns_layout.setSpacing(10)
+        
+        # Перезапись
+        overwrite_frame = QFrame()
+        overwrite_frame.setStyleSheet("QFrame { border: 1px solid #777; border-radius: 10px; background-color: transparent; margin: 5px; } QLabel { border: none; }")
+        overwrite_layout = QVBoxLayout(overwrite_frame)
+        overwrite_layout.setContentsMargins(10, 10, 10, 10)
+        overwrite_layout.setSpacing(5)
+        overwrite_layout.setAlignment(Qt.AlignCenter)
+        
+        overwrite_btn = QPushButton(get_translation(self.current_language, 'overwrite_btn'))
+        def on_overwrite():
+            if hasattr(self, 'cmp_backup_cb'):
+                self.create_backup = self.cmp_backup_cb.isChecked()
+                self.save_settings()
+            dialog.accept()
+            self.handle_cmp_overwrite()
+        overwrite_btn.clicked.connect(on_overwrite)
+        overwrite_layout.addWidget(overwrite_btn)
+        
+        backup_layout = QHBoxLayout()
+        backup_layout.setAlignment(Qt.AlignCenter)
+        backup_layout.setSpacing(10)
+        self.cmp_backup_cb = ToggleSwitch()
+        self.cmp_backup_cb.setChecked(getattr(self, 'create_backup', True))
+        backup_layout.addWidget(self.cmp_backup_cb)
+        backup_label = QLabel(get_translation(self.current_language, 'miz_backup_label'))
+        backup_label.setStyleSheet("color: #ffffff; font-size: 12px; font-weight: normal;")
+        backup_layout.addWidget(backup_label)
+        overwrite_layout.addLayout(backup_layout)
+        btns_layout.addWidget(overwrite_frame)
+        
+        # Сохранить как
+        save_as_container = QHBoxLayout()
+        save_as_container.addStretch()
+        save_as_btn = QPushButton(get_translation(self.current_language, 'save_as_btn'))
+        save_as_btn.clicked.connect(lambda: [dialog.accept(), self.save_cmp_as()])
+        save_as_container.addWidget(save_as_btn)
+        save_as_container.addStretch()
+        btns_layout.addLayout(save_as_container)
+        
+        content_layout.addWidget(btns_container)
+        main_layout.addWidget(content_widget)
+        main_layout.addStretch()
+        
+        # 2. Разделитель
+        line = QFrame()
+        line.setFrameShape(QFrame.HLine)
+        line.setFixedHeight(1)
+        line.setStyleSheet("background-color: #555555; border: none;")
+        main_layout.addWidget(line)
+        
+        # 3. Футер
+        footer = QFrame()
+        footer.setFixedHeight(60)
+        footer.setStyleSheet("QFrame { background-color: #2b2b2b; border: none; border-bottom-left-radius: 6px; border-bottom-right-radius: 6px; }")
+        footer_layout = QHBoxLayout(footer)
+        footer_layout.setContentsMargins(0, 0, 0, 0)
+        
+        cancel_btn = QPushButton(get_translation(self.current_language, 'cancel_btn'))
+        cancel_btn.setObjectName("cancelBtn")
+        cancel_btn.setFixedSize(miz_cancel_width, 32)
+        cancel_btn.setCursor(Qt.PointingHandCursor)
+        
+        def on_cancel():
+            if hasattr(self, 'cmp_backup_cb'):
+                self.create_backup = self.cmp_backup_cb.isChecked()
+                self.save_settings()
+            dialog.reject()
+        cancel_btn.clicked.connect(on_cancel)
+        
+        footer_layout.addStretch()
+        footer_layout.addWidget(cancel_btn)
+        footer_layout.addStretch()
+        main_layout.addWidget(footer)
+        
+        # Показ диалога
+        self.stop_all_preview_timers()
+        self._suppress_preview_update = True
+        try:
+            dialog.exec_()
+        finally:
+            self._suppress_preview_update = False
+
+    def _should_translate_key(self, key):
+        """Проверяет нужно ли переводить ключ по фильтрам"""
+        if hasattr(self, 'show_all_keys_cb') and self.show_all_keys_cb.isChecked():
+            return True
+
+        if hasattr(self, 'filter_action_text') and self.filter_action_text.isChecked() and 'ActionText' in key:
+            return True
+        elif hasattr(self, 'filter_action_radio') and self.filter_action_radio.isChecked() and 'ActionRadioText' in key:
+            return True
+        elif hasattr(self, 'filter_description') and self.filter_description.isChecked() and 'description' in key:
+            return True
+        elif hasattr(self, 'filter_subtitle') and self.filter_subtitle.isChecked() and 'subtitle' in key:
+            return True
+        elif hasattr(self, 'filter_sortie') and self.filter_sortie.isChecked() and 'sortie' in key:
+            return True
+        elif hasattr(self, 'filter_name') and self.filter_name.isChecked() and 'name' in key:
+            return True
+        else:
+            for custom_filter in self.custom_filters:
+                if custom_filter['checkbox'].isChecked():
+                    filter_text = custom_filter['line_edit'].text().strip()
+                    if filter_text and filter_text in key:
+                        return True
+            return False
+
+    def parse_lua_file(self, content):
+        """Парсит Lua файл с dictionary (использует новый парсер)"""
+        self.parse_dictionary_file(content)
+    def load_miz_dictionary_data(self, miz_path, folder_name):
+        """Helper to load dictionary file from specific l10n folder in miz"""
+        try:
+            with zipfile.ZipFile(miz_path, 'r') as miz_archive:
+                dict_path = f'l10n/{folder_name}/dictionary'
+                
+                # Проверяем прямой путь
+                if dict_path in miz_archive.namelist():
+                     with miz_archive.open(dict_path, 'r') as dict_file:
+                        return dict_file.read().decode('utf-8')
+
+                # Поиск с учетом регистра (как в open_miz_file)
+                dict_filename = 'dictionary'
+                folder_prefix = f'l10n/{folder_name.lower()}/'
+                
+                for item in miz_archive.infolist():
+                    name = item.filename
+                    try:
+                        name = name.encode('cp437').decode('utf-8')
+                    except (UnicodeEncodeError, UnicodeDecodeError):
+                        pass
+                        
+                    if name.lower().startswith(folder_prefix) and name.lower().endswith(dict_filename):
+                        with miz_archive.open(item.filename, 'r') as dict_file:
+                            return dict_file.read().decode('utf-8')
+                
+                raise FileNotFoundError(f"Dictionary not found in {folder_name}")
+        except Exception as e:
+            raise e
+
+    def change_miz_locale(self, index):
+        """Switch current miz locale"""
+        if self.is_switching_locale:
+            return
+            
+        # Определяем какой комбобокс вызвал событие
+        sender = self.sender()
+        active_combo = sender if isinstance(sender, QComboBox) else self.miz_locale_combo
+        
+        new_folder = active_combo.currentText()
+        if not new_folder or new_folder == self.current_miz_folder:
+            return
+            
+        # ПРОВЕРКА: Если локаль была удалена, но осталась в кэше UI (редкий случай)
+        if new_folder not in self.current_miz_l10n_folders and not new_folder.startswith(("+", "[")):
+            print(f"WARNING: Attempted to switch to deleted locale {new_folder}. Aborting.")
+            self.update_miz_locale_combo() # Синхронизируем UI
+            return
+
+        print(f"DEBUG: Switching locale to {new_folder}")
+        
+        try:
+            self.is_switching_locale = True
+            
+            # Обработка выбора "[ + ]"
+            if new_folder == "[ + ]":
+                self.is_expanding_plus = True
+                try:
+                    self.update_miz_locale_combo(show_all=True)
+                    active_combo.showPopup()
+                finally:
+                    # Сбрасываем флаг чуть позже, чтобы таймер в eventFilter успел его увидеть
+                    QTimer.singleShot(200, lambda: setattr(self, 'is_expanding_plus', False))
+                return
+
+            # Обработка создания новой локали
+            if new_folder.startswith("+"):
+                target_locale = new_folder[1:] # Убираем плюс
+                print(f"DEBUG: Creating new locale {target_locale} from DEFAULT")
+                
+                # 1. Сначала сохраняем текущее состояние если есть
+                if self.current_miz_folder:
+                     self.miz_trans_memory[self.current_miz_folder] = {
+                        'original_lines': copy.deepcopy(self.original_lines),
+                        'all_lines_data': copy.deepcopy(self.all_lines_data),
+                        'original_content': self.original_content
+                    }
+                
+                # 2. Берем данные из DEFAULT
+                default_data = None
+                
+                # Ищем в памяти
+                if "DEFAULT" in self.miz_trans_memory:
+                    default_data = self.miz_trans_memory["DEFAULT"]
+                # Или загружаем из файла
+                else:
+                    try:
+                        content = self.load_miz_dictionary_data(self.current_miz_path, "DEFAULT")
+                        self.parse_dictionary_file(content) # Парсим чтобы получить структуры
+                        default_data = {
+                            'original_lines': copy.deepcopy(self.original_lines),
+                            'all_lines_data': copy.deepcopy(self.all_lines_data),
+                            'original_content': content
+                        }
+                    except Exception as e:
+                        # Если DEFAULT нет (странно), берем текущее
+                        print(f"WARNING: DEFAULT locale not found, copying current. Error: {e}")
+                        default_data = {
+                            'original_lines': copy.deepcopy(self.original_lines),
+                            'all_lines_data': copy.deepcopy(self.all_lines_data),
+                            'original_content': self.original_content
+                        }
+
+                # 3. Применяем данные к новой локали
+                self.original_lines = copy.deepcopy(default_data['original_lines'])
+                self.all_lines_data = copy.deepcopy(default_data['all_lines_data'])
+                self.original_content = default_data['original_content']
+                try:
+                    for ln in self.original_lines:
+                        if isinstance(ln, dict):
+                            # Заполняем перевод оригинальным текстом из DEFAULT
+                            ln['translated_text'] = ln.get('original_text', '')
+                            ln['original_translated_text'] = ''
+                            # Отображаем в UI оригинальный текст
+                            ln['display_text'] = ln.get('original_text', '')
+                except Exception:
+                    pass
+                try:
+                    for ln in self.all_lines_data:
+                        if isinstance(ln, dict):
+                            ln['translated_text'] = ln.get('original_text', '')
+                            ln['original_translated_text'] = ''
+                            ln['display_text'] = ln.get('original_text', '')
+                except Exception:
+                    pass
+                
+                # 4. Обновляем списки и интерфейс
+                if target_locale not in self.current_miz_l10n_folders:
+                    self.current_miz_l10n_folders.append(target_locale)
+                    self.current_miz_l10n_folders.sort()
+                
+                self.current_miz_folder = target_locale
+                self.update_miz_locale_combo(show_all=False)
+                
+                # 4.1 Обновляем ресурсы для новой локали (синхронизация подсветки)
+                try:
+                    with zipfile.ZipFile(self.current_miz_path, 'r') as miz_archive:
+                        self.miz_resource_manager.update_locale(miz_archive, target_locale)
+                except Exception as e:
+                    print(f"WARNING: Ошибка обновления ресурсов при создании локали: {e}")
+                
+                self.apply_filters()
+                self.update_display()
+                self.update_preview()
+                self.update_file_labels()
+                self.update_preview_header_texts()
+                
+                # Обновляем окно Брифинга при создании новой локали
+
+                
+                self.set_modified(True)
+                self.statusBar().showMessage(get_translation(self.current_language, 'status_locale_created', locale=target_locale))
+                
+                # Сбрасываем выбор в аудиоплеере при смене локали
+                if self.audio_player is not None:
+                    self.audio_player.reset_to_no_file()
+                     
+                self.is_switching_locale = False
+                return
+
+            # Стандартное переключение
+            # 1. Save current state to memory
+            if self.current_miz_folder:
+                self.miz_trans_memory[self.current_miz_folder] = {
+                    'original_lines': copy.deepcopy(self.original_lines),
+                    'all_lines_data': copy.deepcopy(self.all_lines_data),
+                    'original_content': self.original_content
+                }
+            
+            # 2. Load new state
+            if new_folder in self.miz_trans_memory:
+                memory = self.miz_trans_memory[new_folder]
+                self.original_lines = memory['original_lines']
+                self.all_lines_data = memory['all_lines_data']
+                self.original_content = memory['original_content']
+                print(f"DEBUG: Loaded {new_folder} from memory")
+            else:
+                # Load from file
+                content = self.load_miz_dictionary_data(self.current_miz_path, new_folder)
+                self.original_content = content
+                self.parse_dictionary_file(content)
+                print(f"DEBUG: Loaded {new_folder} from file")
+                # Initialize original_translated_text for change tracking (file-load only)
+                for line in self.all_lines_data:
+                    line['original_translated_text'] = line.get('translated_text', '')
+            
+            # 3. Update current folder
+            self.current_miz_folder = new_folder
+            
+            # 3.1 Обновляем mapResource для новой локали
+            if self.current_miz_path:
+                try:
+                    with zipfile.ZipFile(self.current_miz_path, 'r') as miz_archive:
+                        self.miz_resource_manager.update_locale(miz_archive, new_folder)
+                except Exception as e:
+                    print(f"WARNING: Ошибка обновления ресурсов при смене локали: {e}")
+            
+            # 4. Update display
+            self.apply_filters()
+            self.update_display()
+            self.update_preview()
+            self.update_file_labels() 
+            self.update_preview_header_texts()
+            
+
+            
+            self.statusBar().showMessage(get_translation(self.current_language, 'status_mission_lines_loaded', count=len(self.original_lines)))
+            
+            # Сбрасываем выбор в аудиоплеере при смене локали
+            if self.audio_player is not None:
+                self.audio_player.reset_to_no_file()
+            
+        except Exception as e:
+            error_msg = f"Error switching locale: {str(e)}"
+            ErrorLogger.log_error("MIZ_LOCALE_SWITCH", error_msg)
+            self.show_custom_dialog("Error", error_msg, "error")
+            
+            # Revert combo
+            self.miz_locale_combo.blockSignals(True)
+            self.miz_locale_combo.setCurrentText(self.current_miz_folder)
+            self.miz_locale_combo.blockSignals(False)
+            
+        finally:
+            self.is_switching_locale = False
+            self.update_delete_button_visibility()
+
+    def update_delete_button_visibility(self):
+        """Обновляет видимость кнопки удаления в зависимости от выбранной локали"""
+        # Для .miz (Row 2)
+        if hasattr(self, 'delete_locale_btn') and hasattr(self, 'miz_locale_combo'):
+            curr_miz = self.miz_locale_combo.currentText()
+            is_valid_miz = curr_miz and curr_miz != "DEFAULT" and not curr_miz.startswith("[") and not curr_miz.startswith("+")
+            is_miz_active = self.current_miz_path is not None
+            self.delete_locale_btn.setVisible(bool(is_miz_active and is_valid_miz))
+            
+        # Для .cmp (Row 1)
+        if hasattr(self, 'file_delete_locale_btn') and hasattr(self, 'file_locale_combo'):
+            curr_file = self.file_locale_combo.currentText()
+            is_valid_cmp = curr_file and curr_file not in ["DEFAULT", "ORIGINAL"] and not curr_file.startswith("[") and not curr_file.startswith("+")
+            is_cmp_active = self.current_file_path is not None and self.current_file_path.lower().endswith(".cmp")
+            self.file_delete_locale_btn.setVisible(bool(is_cmp_active and is_valid_cmp))
+
+    def confirm_delete_locale(self):
+        """Вызывает диалог подтверждения удаления текущей локали"""
+        # Определяем активную локаль
+        if self.current_file_path and self.current_file_path.lower().endswith('.cmp'):
+            current_locale = self.file_locale_combo.currentText()
+        else:
+            current_locale = self.miz_locale_combo.currentText()
+            
+        if not current_locale or current_locale in ["DEFAULT", "ORIGINAL"] or current_locale.startswith("[") or current_locale.startswith("+"):
+            return
+            
+        dialog = DeleteConfirmDialog(current_locale, self.current_language, self)
+        if dialog.exec_() == QDialog.Accepted:
+            self.delete_selected_locale(current_locale)
+
+    def delete_selected_locale(self, locale_name):
+        """Удаляет локаль из памяти и списков, обновляет интерфейс"""
+        # 1. Удаляем из памяти перевода
+        if locale_name in self.miz_trans_memory:
+            del self.miz_trans_memory[locale_name]
+            
+        # 2. Удаляем из списка папок локалей
+        if hasattr(self, 'current_miz_l10n_folders') and locale_name in self.current_miz_l10n_folders:
+            self.current_miz_l10n_folders.remove(locale_name)
+        
+        # 2.1 [BUG-6 FIX] Очищаем pending-операции для удалённой локали,
+        #     чтобы файлы-сироты не записывались в архив при сохранении.
+        if hasattr(self, 'miz_resource_manager'):
+            prefix = f"l10n/{locale_name}/"
+            # Удаляем pending_files с путями удалённой локали
+            keys_to_remove = [k for k in self.miz_resource_manager.pending_files if k.startswith(prefix)]
+            for k in keys_to_remove:
+                del self.miz_resource_manager.pending_files[k]
+            # Удаляем файлы, помеченные на удаление из этой локали
+            self.miz_resource_manager.files_to_delete = {
+                p for p in self.miz_resource_manager.files_to_delete if not p.startswith(prefix)
+            }
+            # Удаляем модификации mapResource для этой локали
+            if locale_name in self.miz_resource_manager.modified_map_resources:
+                del self.miz_resource_manager.modified_map_resources[locale_name]
+            
+        # 3. ПРИНУДИТЕЛЬНО обновляем комбобокс, чтобы удалить название из списка UI
+        self.update_miz_locale_combo()
+            
+        # 4. Если мы удалили текущую открытую локаль, переключаемся на DEFAULT или первую доступную
+        if self.current_miz_folder == locale_name:
+            self.current_miz_folder = None # Сброс
+            
+            # Приоритет при сбросе: DEFAULT -> EN -> RU -> первая в списке
+            target = None
+            for p in ["DEFAULT", "EN", "RU"]:
+                if p in self.current_miz_l10n_folders:
+                    target = p
+                    break
+            
+            if not target and self.current_miz_l10n_folders:
+                target = self.current_miz_l10n_folders[0]
+                
+            if target:
+                index = self.miz_locale_combo.findText(target)
+                if index < 0 and hasattr(self, 'file_locale_combo'):
+                    index = self.file_locale_combo.findText(target)
+                
+                if index >= 0:
+                    # Вызываем смену через комбобокс для полной синхронизации
+                    if self.current_file_path and self.current_file_path.lower().endswith('.cmp'):
+                        # Принудительно вызываем смену, если индекс уже 0 ( setCurrentIndex(0) может не вызвать сигнал)
+                        if self.file_locale_combo.currentIndex() == index:
+                            self.change_miz_locale(index)
+                        else:
+                            self.file_locale_combo.setCurrentIndex(index)
+                    else:
+                        if self.miz_locale_combo.currentIndex() == index:
+                            self.change_miz_locale(index)
+                        else:
+                            self.miz_locale_combo.setCurrentIndex(index)
+            
+        self.set_modified(True)
+        print(f"OK: Locale {locale_name} deleted and UI updated")
+
+    def update_miz_locale_combo(self, show_all=False, is_initial_load=False):
+        """Обновляет содержимое комбобокса локалей"""
+        # Определяем какой комбобокс обновлять (или оба)
+        combos = []
+        if hasattr(self, 'miz_locale_combo'): combos.append(self.miz_locale_combo)
+        if hasattr(self, 'file_locale_combo'): combos.append(self.file_locale_combo)
+        
+        for combo in combos:
+            combo.blockSignals(True)
+            combo.clear()
+            
+            # 1. Существующие папки
+            combo.addItems(self.current_miz_l10n_folders)
+            
+            # 2. Если нужно показать все доступные для создания
+            if show_all:
+                existing = set(self.current_miz_l10n_folders)
+                for locale in self.STANDARD_LOCALES:
+                    if locale not in existing:
+                        combo.addItem(f"+{locale}")
+            else:
+                # Иначе добавляем кнопку раскрытия, если есть что добавить
+                existing = set(self.current_miz_l10n_folders)
+                has_missing = any(l not in existing for l in self.STANDARD_LOCALES)
+                if has_missing:
+                    combo.addItem("[ + ]")
+                    
+            if self.current_miz_folder in self.current_miz_l10n_folders:
+                combo.setCurrentText(self.current_miz_folder)
+                
+            combo.blockSignals(False)
+            
+        # Обновляем комбобокс референсной локали теми же доступными локалями
+        self.update_preview_reference_combo(self.current_miz_l10n_folders, is_initial_load=is_initial_load)
+        self.update_delete_button_visibility()
+
+    def open_miz_file(self, preselected_path=None):
+        """Открывает файл миссии .miz и извлекает dictionary"""
+        if getattr(self, 'has_unsaved_changes', False):
+            if not self.show_exit_confirmation_dialog(mode='open_new'):
+                return
+        progress = None
+        try:
+            if preselected_path and os.path.exists(preselected_path):
+                file_path = preselected_path
+            else:
+                start_folder = getattr(self, 'last_open_folder', '')
+                options = QFileDialog.Options()
+                options |= QFileDialog.DontUseCustomDirectoryIcons
+                file_path, _ = QFileDialog.getOpenFileName(
+                    self, 
+                    'Открыть файл миссии DCS (.miz)', 
+                    start_folder, 
+                    'Файлы миссий DCS (*.miz);;Все файлы (*)',
+                    options=options
+                )
+                
+                if not file_path:
+                    return
+            
+            self.clear_current_data()
+            self.last_open_folder = os.path.dirname(file_path)
+            self.save_settings()
+
+                
+            print(f"\n{'='*50}")
+            print(f"ОТКРЫТИЕ .MIZ ФАЙЛА: {os.path.basename(file_path)}")
+            print(f"{'='*50}")
+            
+            # Сохраняем путь к .miz файлу
+            self.current_miz_path = file_path
+            self.add_to_recent(file_path)
+            
+            # Включаем кнопку брифинга для .miz файлов
+            if hasattr(self, 'btn_briefing'):
+                self.btn_briefing.setEnabled(True)
+            
+            # Показываем прогресс-бар
+            progress = MizProgressDialog(self)
+            progress.show()
+            progress.set_value(10)
+            
+            try:
+                # Открываем .miz файл как ZIP-архив
+                with zipfile.ZipFile(file_path, 'r') as miz_archive:
+                    progress.set_value(20)
+                    
+                    # Парсим ресурсы миссии (связи audio↔subtitle, mapResource)
+                    try:
+                        self.miz_resource_manager.load_from_miz(miz_archive, 'DEFAULT')
+                        # Показываем кнопку смещения эвристики
+                        if hasattr(self, 'heuristic_toggle_btn'):
+                            offset = self.miz_resource_manager.get_current_offset_label()
+                            offset_str = f"+{offset}" if offset > 0 else str(offset)
+                            self.heuristic_toggle_btn.setText(
+                                get_translation(self.current_language, 'heuristic_toggle_btn', offset=offset_str)
+                            )
+                            # self.heuristic_toggle_btn.setVisible(True)  # Скрыта по просьбе пользователя
+                    except Exception as e:
+                        print(f"WARNING: Ошибка парсинга ресурсов миссии: {e}")
+                    progress.set_value(30)
+                    
+                    # Сканируем доступные папки локализации в l10n/
+                    l10n_folders = set()
+                    for item in miz_archive.infolist():
+                        # Исправляем кодировку имени файла (CP437 -> UTF-8), если нужно
+                        name = item.filename
+                        try:
+                            name = name.encode('cp437').decode('utf-8')
+                        except (UnicodeEncodeError, UnicodeDecodeError):
+                            pass
+                            
+                        if name.startswith('l10n/') and '/' in name[5:]:
+                            folder_name = name[5:].split('/')[0]
+                            l10n_folders.add(folder_name)
+                    
+                    l10n_folders = sorted(list(l10n_folders))
+                    print(f"DEBUG: Found l10n folders: {l10n_folders}")
+                    progress.set_value(40)
+                    
+                    # Путь по умолчанию
+                    self.current_miz_folder = 'DEFAULT'
+                    dict_path = f'l10n/{self.current_miz_folder}/dictionary'
+                    
+                    # Если найдено несколько папок, спрашиваем пользователя (или пропускаем, если стоит галочка)
+                    if len(l10n_folders) > 1 or (len(l10n_folders) == 1 and "DEFAULT" not in l10n_folders):
+                        chosen_folder = None
+                        
+                        if getattr(self, 'skip_locale_dialog', False):
+                            # Ищем локаль по умолчанию среди доступных в архиве
+                            target = getattr(self, 'default_open_locale', 'DEFAULT')
+                            if target in l10n_folders:
+                                chosen_folder = target
+                            elif "DEFAULT" in l10n_folders:
+                                chosen_folder = "DEFAULT"
+                            elif l10n_folders:
+                                chosen_folder = l10n_folders[0]
+                                
+                        if not chosen_folder:
+                            # Показываем диалог
+                            dialog_default = getattr(self, 'default_open_locale', 'DEFAULT')
+                            dialog = MizFolderDialog(l10n_folders, self.current_language, self, default_selection=dialog_default)
+                            if dialog.exec_() == QDialog.Accepted:
+                                chosen_folder = dialog.selected_folder
+                            else:
+                                print("DEBUG: Folder selection cancelled")
+                                self.current_miz_path = None
+                                progress.close()
+                                return
+                        
+                        self.current_miz_folder = chosen_folder
+                        dict_path = f'l10n/{self.current_miz_folder}/dictionary'
+                        print(f"DEBUG: User selected folder: {self.current_miz_folder}")
+                        # Обновляем mapResource для выбранной локали
+                        try:
+                            self.miz_resource_manager.update_locale(miz_archive, self.current_miz_folder)
+                            # Обновляем открытый аудиоплеер
+                            if hasattr(self, 'audio_player') and self.audio_player:
+                                self.audio_player.refresh_playlist()
+                        except Exception as e:
+                            print(f"WARNING: Ошибка обновления ресурсов для {self.current_miz_folder}: {e}")
+                    progress.set_value(50)
+                    
+                    # Проверяем наличие файла dictionary по выбранному пути
+                    if dict_path not in miz_archive.namelist():
+                        # Ищем альтернативные пути (на случай разных регистров)
+                        found = False
+                        dict_filename = os.path.basename(dict_path).lower()
+                        folder_prefix = os.path.dirname(dict_path).lower() + '/'
+                        
+                        for item in miz_archive.infolist():
+                            # Исправляем кодировку
+                            name = item.filename
+                            try:
+                                name = name.encode('cp437').decode('utf-8')
+                            except (UnicodeEncodeError, UnicodeDecodeError):
+                                pass
+
+                            if name.lower().startswith(folder_prefix) and name.lower().endswith(dict_filename):
+                                dict_path = item.filename # Используем оригинальное имя из архива
+                                print(f"⚠ Найден dictionary по альтернативному пути: {dict_path}")
+                                found = True
+                                break
+                        
+                        if not found:
+                            raise FileNotFoundError(f"Файл dictionary не найден по пути {dict_path}")
+                    progress.set_value(60)
+                    
+                    # Читаем содержимое dictionary
+                    with miz_archive.open(dict_path, 'r') as dict_file:
+                        self.original_content = dict_file.read().decode('utf-8')
+                    
+                    print(f"✅ Файл dictionary успешно извлечен из {dict_path}")
+                    print(f"📏 Размер файла: {len(self.original_content)} байт")
+                    progress.set_value(70)
+                    
+            except zipfile.BadZipFile:
+                error_msg = get_translation(self.current_language, 'error_bad_zip', filename=os.path.basename(file_path))
+                ErrorLogger.log_error("MIZ_BAD_ZIP", error_msg)
+                self.show_custom_dialog(get_translation(self.current_language, 'error_title'), error_msg, "error")
+                self.current_miz_path = None
+                progress.close()
+                return
+            except FileNotFoundError as e:
+                error_msg = f"{get_translation(self.current_language, 'file_not_found')}: {str(e)}"
+                ErrorLogger.log_error("MIZ_NO_DICT", error_msg)
+                self.show_custom_dialog(get_translation(self.current_language, 'error_title'), error_msg, "error")
+                self.current_miz_path = None
+                progress.close()
+                self.set_modified(False)
+                return
+            except Exception as e:
+                error_msg = f"{get_translation(self.current_language, 'miz_error')}: {str(e)}"
+                ErrorLogger.log_error("MIZ_READ", error_msg)
+                self.show_custom_dialog(get_translation(self.current_language, 'error_title'), error_msg, "error")
+                self.current_miz_path = None
+                progress.close()
+                return
+            
+            # Обновляем метку файла
+            self.current_file_path = file_path
+            self.load_bookmarks(file_path)
+            
+            # Устанавливаем целевой референс в соответствии с настройками по умолчанию
+            target_ref_locale = getattr(self, 'settings_reference_locale', 'DEFAULT')
+            self._reference_locale = target_ref_locale
+            
+            # Загружаем reference данные из .miz (с диска, read-only)
+            # ВАЖНО: делаем это ДО parse_dictionary_file, чтобы фильтрация пустых строк знала о референсе
+            try:
+                self.reference_loader.clear_cache()
+                self.reference_data = self.reference_loader.load_locale_from_miz(
+                    file_path, target_ref_locale
+                )
+            except Exception as e:
+                print(f"WARNING: Ошибка загрузки reference данных: {e}")
+                self.reference_data = {}
+
+            # Теперь парсим основной словарь
+            self.parse_dictionary_file(self.original_content)
+            
+            if self.all_lines_data:
+                self.apply_filters()
+                self.save_file_btn.setEnabled(True)
+                self.selected_miz_label.setVisible(True)
+                self.selected_file_label.setVisible(False)
+                
+                # Инициализация переключателя локалей
+                self.current_miz_l10n_folders = l10n_folders
+                self.miz_trans_memory = {} # Сброс памяти при открытии нового файла
+
+                # ОДИН вызов для всех комбобоксов с флагом первичной загрузки
+                self.update_miz_locale_combo(show_all=False, is_initial_load=True)
+                
+                self.update_file_labels()
+                self.update_preview_header_texts()
+                
+                # Сохраняем начальное состояние ВСЕХ строк для отслеживания правок
+                for line in self.all_lines_data:
+                    line['original_translated_text'] = line.get('translated_text', '')
+                
+                lines_loaded_msg = get_translation(self.current_language, 'status_mission_lines_loaded', count=len(self.original_lines))
+                self.statusBar().showMessage(lines_loaded_msg)
+                
+                # Если референс-локаль отсутствовала и был fallback на DEFAULT — показываем предупреждение
+                if self.reference_loader.last_fallback:
+                    fb = self.reference_loader.last_fallback
+                    warn_msg = get_translation(self.current_language, 'status_ref_locale_fallback', locale=fb)
+                    # Показываем предупреждение через 300мс (чтобы предыдущее сообщение успело отобразиться)
+                    QTimer.singleShot(300, lambda: self.statusBar().showMessage(warn_msg))
+                    # Через 5 секунд восстанавливаем сообщение о загруженных строках
+                    QTimer.singleShot(5300, lambda: self.statusBar().showMessage(lines_loaded_msg))
+                
+                self.set_modified(False)
+                progress.set_value(100)
+                
+                # Если после фильтрации строк нет, показываем информационное окно (но файл при этом инициализирован!)
+                if not self.original_lines:
+                    self.show_custom_dialog(
+                        get_translation(self.current_language, 'error_title'),
+                        get_translation(self.current_language, 'error_no_lines_found_miz'),
+                        "info"
+                    )
+            else:
+                self.show_custom_dialog(
+                    get_translation(self.current_language, 'error_title'),
+                    get_translation(self.current_language, 'error_no_lines_found_miz'),
+                    "info"
+                )
+            
+        except Exception as e:
+            error_msg = f"Общая ошибка при открытии .miz файла: {str(e)}"
+            ErrorLogger.log_error("MIZ_OPEN", error_msg)
+            self.show_custom_dialog("Ошибка", error_msg, "error")
+            self.current_miz_path = None
+        finally:
+            if progress:
+                progress.close()
+            self._suppress_preview_update = False
+    
+    def parse_lua_file(self, content):
+        """Парсит Lua файл с dictionary (старый метод, оставлен для обратной совместимости)"""
+        print("⚠ Используется старый парсер Lua. Рекомендуется обновить файл.")
+        self.parse_dictionary_file(content)
+    
+    def parse_cmp_file(self, content, target_locale=None):
+        """Парсит файл кампании (.cmp) используя CampaignParser"""
+        try:
+            from parserCMP import CampaignParser
+            import copy
+            parser = CampaignParser()
+            
+            # Получаем все данные из файла
+            all_cmp_data = parser.parse_content(content)
+            
+            if not all_cmp_data:
+                return
+            
+            # Группируем данные по локалям для miz_trans_memory
+            # CampaignParser возвращает список словарей с ключами типа "name", "name_EN", "name_RU" и т.д.
+            # Нам нужно разбить их обратно на локальные наборы.
+            
+            locales_data = {} # locale_name -> list of display_lines
+            
+            for line_data in all_cmp_data:
+                # Определяем локаль по ключу
+                full_key = line_data['key']
+                base, lang = parser._split_key(full_key)
+                
+                if lang not in locales_data:
+                    locales_data[lang] = []
+                
+                locales_data[lang].append(copy.deepcopy(line_data))
+            
+            # Замораживаем референсные данные ПЕРЕД тем, как они начнут меняться при редактировании
+            # Это аналог reference_data для .miz
+            self.cmp_reference_data = {}
+            for lang, lines in locales_data.items():
+                for line_data in lines:
+                    full_key = line_data['key']
+                    if full_key not in self.cmp_reference_data:
+                        self.cmp_reference_data[full_key] = []
+                    # Сохраняем строку текста, а не ссылку на словарь
+                    self.cmp_reference_data[full_key].append(line_data.get('translated_text', line_data.get('display_text', '')))
+
+            # Устанавливаем целевой референс в соответствии с настройками по умолчанию
+            self._reference_locale = getattr(self, 'settings_reference_locale', 'DEFAULT')
+            
+            # Сохраняем все в miz_trans_memory
+            self.miz_trans_memory = {}
+            found_locales = sorted(list(locales_data.keys()))
+            
+            for lang, lines in locales_data.items():
+                # Инициализируем исходное состояние для каждой строки для отслеживания правок
+                for line in lines:
+                    line['original_translated_text'] = line.get('translated_text', '')
+                
+                self.miz_trans_memory[lang] = {
+                    'original_lines': copy.deepcopy(lines),
+                    'all_lines_data': copy.deepcopy(lines),
+                    'original_content': content # Весь файл для базы
+                }
+            
+            self.current_miz_l10n_folders = found_locales
+            
+            # Выбираем начальную локаль
+            if target_locale and target_locale in found_locales:
+                self.current_miz_folder = target_locale
+            elif 'RU' in found_locales:
+                self.current_miz_folder = 'RU'
+            elif 'EN' in found_locales:
+                self.current_miz_folder = 'EN'
+            elif 'DEFAULT' in found_locales:
+                self.current_miz_folder = 'DEFAULT'
+            else:
+                self.current_miz_folder = found_locales[0]
+            
+            # Загружаем выбранную локаль
+            memory = self.miz_trans_memory[self.current_miz_folder]
+            self.original_lines = memory['original_lines']
+            self.all_lines_data = memory['all_lines_data']
+            
+            # Обновляем UI комбобокса
+            self.update_miz_locale_combo(is_initial_load=True)
+            
+        except Exception as e:
+            ErrorLogger.log_error("CMP_PARSE", f"Ошибка парсинга .cmp: {e}")
+            raise e
+    
+    def parse_text_file(self, content):
+        """Парсит простой текстовый файл"""
+        self.original_lines = []
+        self.all_lines_data = []
+        
+        lines = content.split('\n')
+        for i, line in enumerate(lines):
+            line = line.strip()
+            if line:
+                line_data = {
+                    'key': f'Line_{i+1:04d}',
+                    'original_text': line,
+                    'display_text': line,
+                    'translated_text': line,
+                    'full_match': line,
+                    'indent': '',
+                    'start_pos': 0,
+                    'end_pos': len(line),
+                    'should_translate': True,
+                    'is_empty': False,
+                    'ends_with_backslash': False,
+                    'is_multiline': False,
+                    'display_line_index': i,
+                    'total_display_lines': 1,
+                    'part_index': i
+                }
+                
+                self.all_lines_data.append(line_data)
+                self.original_lines.append(line_data)
+    
+    def apply_filters(self, full_rebuild=True):
+        """Применяет выбранные фильтры к данным"""
+        lines_before = len(self.original_lines)
+        self.original_lines = []
+        
+        # Находим объект строки в original_lines, который сейчас в фокусе (чтобы не скрывать его во время ввода)
+        focused_line_data = None
+        try:
+            focus_w = QApplication.focusWidget()
+            from widgets import PreviewTextEdit
+            if isinstance(focus_w, PreviewTextEdit) and 0 <= focus_w.index < len(self.original_lines):
+                focused_line_data = self.original_lines[focus_w.index]
+        except Exception:
+            pass
+        
+        show_all = getattr(self, 'show_all_keys_cb', None) and self.show_all_keys_cb.isChecked()
+        suppress_indices = getattr(self, 'suppress_empty_filter_for_indices', set())
+        
+        # Флаг для приоритета аудио
+        audio_filter_active = getattr(self, 'filter_audio_keys_cb', None) and self.filter_audio_keys_cb.isChecked()
+        
+        for idx, line_data in enumerate(self.all_lines_data):
+            should_translate = False
+            has_audio = False
+            
+            # Проверяем наличие аудио для этого ключа (чтобы использовать в приоритетной логике)
+            if audio_filter_active:
+                if self.miz_resource_manager and self.miz_resource_manager.get_audio_for_key(line_data.get('key', '')):
+                    has_audio = True
+            
+            if show_all:
+                should_translate = True
+            elif audio_filter_active and has_audio:
+                should_translate = True
+            elif self.filter_action_text.isChecked() and 'ActionText' in line_data['key']:
+                should_translate = True
+            elif self.filter_action_radio.isChecked() and 'ActionRadioText' in line_data['key']:
+                should_translate = True
+            elif self.filter_description.isChecked() and 'description' in line_data['key']:
+                should_translate = True
+            elif self.filter_subtitle.isChecked() and 'subtitle' in line_data['key']:
+                should_translate = True
+            elif self.filter_sortie.isChecked() and 'sortie' in line_data['key']:
+                should_translate = True
+            elif self.filter_name.isChecked() and 'name' in line_data['key']:
+                should_translate = True
+            else:
+                # Проверяем произвольные фильтры
+                for custom_filter in self.custom_filters:
+                    if custom_filter['checkbox'].isChecked():
+                        filter_text = custom_filter['line_edit'].text().strip()
+                        if filter_text and filter_text in line_data['key']:
+                            should_translate = True
+                            break
+            
+            # === Фильтр пустых строк ===
+            exclude_reason = None
+            
+            # Если мы НЕ в режиме "Показать всё", применяем фильтры исключения
+            if not show_all:
+                if should_translate and line_data['is_empty'] and self.filter_empty:
+                    # НЕ скрываем строку, если она в фокусе прямо сейчас (защита от исчезновения поля под курсором)
+                    if line_data is not focused_line_data:
+                        # Проверяем, является ли эта строка окончательным индексом в original_lines
+                        current_visual_idx = len(self.original_lines)
+                        if current_visual_idx not in suppress_indices:
+                            should_translate = False
+                            exclude_reason = 'empty_filtered'
+                        
+                # Если включён фильтр пропуска пустых ключей и ключ полностью пуст, не переводим
+                if getattr(self, 'filter_empty_keys', True) and should_translate:
+                    # Находим все строки для этого ключа, чтобы убедиться, что ни в одной нет текста (оригинала ИЛИ перевода)
+                    key = line_data.get('key')
+                    has_any_content = False
+                    for ld in self.all_lines_data:
+                        if ld.get('key') == key:
+                            orig_text = ld.get('original_text', '').strip()
+                            trans_text = ld.get('translated_text', '').strip()
+                            if orig_text or trans_text:
+                                has_any_content = True
+                                break
+                                
+                    is_truly_empty_key = not has_any_content
+                    # has_audio уже вычислен в начале цикла с учетом аудио-фильтра
+                    
+                    if is_truly_empty_key:
+                        # Если ключи с аудио должны быть показаны даже если они пустые
+                        if has_audio:
+                            # Мы оставляем этот ключ, но если это не первая часть (part_index > 0) 
+                            # и мы фильтруем пустые строки, то всё равно можем скрыть, 
+                            # КРОМЕ случая когда это ЕДИНСТВЕННЫЙ шанс показать ключ.
+                            pass # Логика ниже уточнит что именно оставить
+                        else:
+                            should_translate = False
+                            exclude_reason = 'key_all_empty'
+
+            # --- Спец-обработка для аудио-ключей: всегда оставлять хотя бы одну запись ---
+            # НО ТОЛЬКО ЕСЛИ ВКЛЮЧЕН ФИЛЬТР АУДИО
+            if not show_all and not should_translate and audio_filter_active:
+                key = line_data.get('key')
+                has_audio = bool(self.miz_resource_manager.get_audio_for_key(key))
+                if has_audio:
+                    # Если это первая часть ключа (part_index == 0)
+                    if line_data.get('part_index') == 0:
+                        # Проверяем, не был ли этот ключ уже добавлен (через другие части)
+                        already_added = False
+                        for added in self.original_lines:
+                            if added.get('key') == key:
+                                already_added = True
+                                break
+                        
+                        if not already_added:
+                            # Принудительно оставляем, но помечаем что ввод нужно скрыть
+                            should_translate = True
+                            line_data['hide_input'] = True
+                            exclude_reason = None
+            
+            if should_translate:
+                self.original_lines.append(line_data)
+            else:
+                # Log diagnostic info for excluded lines when filtering is active
+                try:
+                    if self.filter_empty or getattr(self, 'filter_empty_keys', True):
+                        # limit excessive logging
+                        if not hasattr(self, '_filter_diagnostics'):
+                            self._filter_diagnostics = []
+                        if len(self._filter_diagnostics) < 200:
+                            key = line_data.get('key')
+                            part = line_data.get('part_index', 0)
+                            is_empty = bool(line_data.get('is_empty', False))
+                            reason = exclude_reason or 'no_match'
+                            self._filter_diagnostics.append((idx, key, part, is_empty, reason))
+                except Exception:
+                    pass
+        
+        # Очищаем флаг защиты после применения фильтра
+        self.suppress_empty_filter_for_indices = set()
+        
+        lines_after = len(self.original_lines)
+        log_msg = f"[APPLY_FILTERS] before={lines_before} after={lines_after} filter_empty={self.filter_empty} suppressed={len(suppress_indices)}"
+        self._log_to_file(log_msg)
+        # Dump diagnostics if collected
+        try:
+            if hasattr(self, '_filter_diagnostics') and self._filter_diagnostics:
+                self._log_to_file(f"[FILTER_DIAG] Collected {len(self._filter_diagnostics)} entries (showing up to 200):")
+                for entry in self._filter_diagnostics:
+                    idx, key, part, is_empty, reason = entry
+                    self._log_to_file(f"[FILTER_DIAG] idx={idx} key={key} part={part} empty={is_empty} reason={reason}")
+                # keep diagnostics for one run only
+                self._filter_diagnostics = []
+        except Exception:
+            pass
+        print(f"📊 После фильтрации строк для перевода: {len(self.original_lines)}")
+        
+        if full_rebuild:
+            self.update_display()
+        else:
+            # Если количество видимых строк изменилось — нужно обновить и верхний редактор,
+            # чтобы индексы блоков соответствовали новым индексам original_lines.
+            if len(self.original_lines) != lines_before:
+                self.update_display(update_preview=False)
+            
+            self.sync_preview_incremental()
+            
+        # Обновляем навигатор по закладкам
+        self.update_bookmark_navigation_ui()
+    
+    def toggle_empty_filter(self):
+        """Включает/выключает фильтр пустых строк - ИСПРАВЛЕНО: без параметра state"""
+        # Используем isChecked() для получения состояния после анимации
+        self.filter_empty = self.filter_empty_cb.isChecked()
+        log_msg = f"[TOGGLE_EMPTY_FILTER] filter_empty={self.filter_empty} original_lines_before={len(self.original_lines)}"
+        self._log_to_file(log_msg)
+        self.apply_filters()
+        self.save_settings()
+
+    def toggle_empty_keys_filter(self):
+        """Переключает фильтр: пропускать полностью пустые ключи"""
+        self.filter_empty_keys = self.filter_empty_keys_cb.isChecked()
+        self.apply_filters()
+        self.save_settings()
+    
+    def toggle_show_all_keys(self):
+        """Переключает отображение всех ключей"""
+        self.show_all_keys = self.show_all_keys_cb.isChecked()
+        self.apply_filters()
+        self.save_settings()
+    
+    def toggle_keys_display(self, checked):
+        """Переключает отображение ключей.
+        Обновляем основное отображение без перестройки превью (preview уже соответствует оригиналу).
+        """
+        # Обновляем только основные панели — предотвращаем перерисовку и пересчёт стилей в превью
+        self.update_display(update_preview=False)
+    
+    # [DISPLAY_METHODS]
+    def update_display(self, update_preview=True):
+        """Обновляет отображение в основных панелях"""
+        # Если установлен флаг подавления — не обновляем отображение/предпросмотр
+        if getattr(self, '_suppress_preview_update', False):
+            return
+        if self.is_updating_display:
+            return
+            
+        self.is_updating_display = True
+        self.prevent_text_changed = True
+        
+        try:
+            if not self.original_lines:
+                self.original_text_all.clear()
+                self.translated_text_all.clear()
+                self.update_translation_stats()
+                self.english_count_label.setText(get_translation(self.current_language, 'english_count_label', count=0))
+                self.russian_count_label.setText(get_translation(self.current_language, 'russian_count_label', filled=0, total=0))
+                self.preview_info.setText(get_translation(self.current_language, 'preview_info', count=0))
+                
+                # Обновляем превью для показа заглушки
+                if update_preview:
+                    self.update_preview()
+                return
+            
+            # Формируем текст для левой панели (оригинал)
+            english_lines = []
+            show_keys = self.show_keys_btn.isChecked()
+            
+            for line_data in self.original_lines:
+                # Удаляем переносы строк внутри текста
+                clean_text = line_data['display_text'].replace('\n', ' ')
+                
+                # Добавляем индикатор слеша
+                if line_data.get('ends_with_backslash', False):
+                    # clean_text += " [\\]"  # Индикатор слеша удален по просьбе пользователя
+                    pass
+                
+                if show_keys:
+                    english_lines.append(f"[{line_data['key']}] {clean_text}")
+                else:
+                    english_lines.append(clean_text)
+            
+            # [BUFFER] Устанавливаем лимит номеров строк для оригинала
+            self.original_text_all.max_line_count = len(self.original_lines)
+            
+            # Формируем текст для правой панели (перевод)
+            russian_lines = []
+            for line_data in self.original_lines:
+                if line_data['translated_text']:
+                    clean_text = line_data['translated_text'].replace('\n', ' ')
+                    russian_lines.append(clean_text)
+                else:
+                    russian_lines.append('')
+            
+            # [BUFFER] Добавляем лишние строки в перевод
+            if self.extra_translation_lines:
+                russian_lines.extend(self.extra_translation_lines)
+            
+            # [BUFFER] Добавляем соответствующие пустые строки в оригинал
+            if len(self.extra_translation_lines) > 0:
+                english_lines.extend([''] * len(self.extra_translation_lines))
+            
+            # Обновляем оригинал
+            new_orig_text = '\n'.join(english_lines)
+            if self.original_text_all.toPlainText() != new_orig_text:
+                self.original_text_all.setPlainText(new_orig_text)
+            
+            new_text = '\n'.join(russian_lines)
+            
+            # Обновляем перевод (если изменился)
+            current_text = self.translated_text_all.toPlainText()
+            if current_text != new_text:
+                self.translated_text_all.setPlainText(new_text)
+            
+            # [LINE_PADDING] Добиваем пустыми строками до количества строк оригинала
+            doc = self.translated_text_all.document()
+            current_blocks = doc.blockCount()
+            needed_blocks = len(self.original_lines)
+            
+            if current_blocks < needed_blocks:
+                diff = needed_blocks - current_blocks
+                cursor = QTextCursor(doc)
+                cursor.movePosition(QTextCursor.End)
+                cursor.insertText('\n' * diff)
+            
+            # Применяем цвета темы к редакторам
+            if hasattr(self, 'original_text_all'):
+                self.original_text_all.set_zebra_colors(self.theme_bg_even, self.theme_bg_odd)
+            if hasattr(self, 'translated_text_all'):
+                self.translated_text_all.set_zebra_colors(self.theme_bg_even, self.theme_bg_odd)
+
+            # Обновляем статистику
+            self.update_stats()
+            
+            # Обновляем предпросмотр
+            if update_preview and not getattr(self, 'is_updating_from_preview', False):
+                self.schedule_preview_update()
+            elif not update_preview:
+                # Пропускаем обновление цветов превью — это дорогая операция.
+                # Если нужно обновить цвета (смена темы), вызывайте update_preview_theme_colors() явно.
+                pass
+            
+            # Обновляем результаты поиска, если есть активный поиск (БЕЗ СКРОЛЛА при сохранении/обновлении)
+            if hasattr(self, 'search_input') and self.search_input.text():
+                self.on_search_text_changed(self.search_input.text(), scroll=False)
+            
+        except Exception as e:
+            ErrorLogger.log_error("DISPLAY_UPDATE", f"Ошибка при обновлении отображения: {e}")
+        finally:
+            self.is_updating_display = False
+            self.prevent_text_changed = False
+    
+    def update_stats(self):
+        """Обновляет статистику перевода"""
+        if not self.original_lines:
+            self.update_translation_stats()
+            self.english_count_label.setText(get_translation(self.current_language, 'english_count_label', count=0))
+            self.russian_count_label.setText(get_translation(self.current_language, 'russian_count_label', filled=0, total=0))
+            if hasattr(self, 'preview_info'):
+                self.preview_info.setText(get_translation(self.current_language, 'preview_info', count=0))
+            return
+        
+        self.update_translation_stats()
+        count_all = len(self.original_lines)
+        self.english_count_label.setText(get_translation(self.current_language, 'english_count_label', count=count_all))
+        
+        filled_translations = sum(1 for line in self.original_lines if line['translated_text'].strip())
+        self.russian_count_label.setText(get_translation(self.current_language, 'russian_count_label', filled=filled_translations, total=count_all))
+        
+        # Обновляем "Загружено блоков XX" в превью
+        if hasattr(self, 'preview_info'):
+            unique_blocks = 0
+            if self.original_lines:
+                unique_blocks = len(set(line['key'] for line in self.original_lines))
+            self.preview_info.setText(get_translation(self.current_language, 'preview_info', count=unique_blocks))
+
+    def on_add_context_toggled(self, checked):
+        """Handler for `add_context_toggle`: save setting without forcing preview rebuild."""
+        try:
+            # update internal flag
+            self.add_context = bool(checked)
+            # persist setting but avoid full preview rebuild
+            self.save_settings(update_preview=False, update_ui=False)
+        except Exception:
+            try:
+                self.save_settings(update_ui=False)
+            except Exception:
+                pass
+    
+    def toggle_sync_scroll(self):
+        """Переключает режим синхронной прокрутки окон"""
+        self.sync_scroll = self.sync_scroll_toggle.isChecked()
+        
+        # Отключаем старые вертикальные соединения
+        try:
+            self.original_text_all.verticalScrollBar().valueChanged.disconnect(self._sync_original_to_translated)
+        except: pass
+        try:
+            self.translated_text_all.verticalScrollBar().valueChanged.disconnect(self._sync_translated_to_original)
+        except: pass
+            
+        # Если включено — подключаем
+        if self.sync_scroll:
+            self.original_text_all.verticalScrollBar().valueChanged.connect(self._sync_original_to_translated)
+            self.translated_text_all.verticalScrollBar().valueChanged.connect(self._sync_translated_to_original)
+            
+            # Сразу синхронизируем (правое к левому)
+            val = self.original_text_all.verticalScrollBar().value()
+            self.translated_text_all.verticalScrollBar().setValue(val)
+        
+        # Синхронизация горизонтального пространства (видимости) теперь работает ВСЕГДА 
+        # (подключена в setup_translation_area), поэтому здесь ничего менять не нужно 
+        # для сохранения высоты вьюпортов даже при выключенном вертикальном синхроне.
+        
+        # Save without forcing preview rebuild (no need to reconstruct preview when toggling scroll)
+        try:
+            self.save_settings(update_preview=False, update_ui=False)
+        except Exception:
+            try:
+                self.save_settings(update_ui=False)
+            except Exception:
+                pass
+
+    def _sync_horizontal_scrollbar_visibility(self):
+        """Синхронизирует видимость (резервирование места) горизонтальных скроллбаров"""
+        # Проверяем, нужен ли хоть один горизонтальный скроллбар
+        range_orig = self.original_text_all.horizontalScrollBar().maximum()
+        range_trans = self.translated_text_all.horizontalScrollBar().maximum()
+        
+        new_policy = Qt.ScrollBarAlwaysOn if (range_orig > 0 or range_trans > 0) else Qt.ScrollBarAsNeeded
+        
+        # Избегаем лишних вызовов setHorizontalScrollBarPolicy, которые триггерят тяжёлую перерисовку
+        if self.original_text_all.horizontalScrollBarPolicy() != new_policy:
+            self.original_text_all.setHorizontalScrollBarPolicy(new_policy)
+        if self.translated_text_all.horizontalScrollBarPolicy() != new_policy:
+            self.translated_text_all.setHorizontalScrollBarPolicy(new_policy)
+
+    def _sync_original_to_translated(self, value):
+        """Синхронизация левого окна -> правое"""
+        if self._is_syncing or not self.sync_scroll:
+            return
+        self._is_syncing = True
+        self.translated_text_all.verticalScrollBar().setValue(value)
+        self._is_syncing = False
+
+    def _sync_translated_to_original(self, value):
+        """Синхронизация правого окна -> левое"""
+        if self._is_syncing or not self.sync_scroll:
+            return
+        self._is_syncing = True
+        self.original_text_all.verticalScrollBar().setValue(value)
+        self._is_syncing = False
+    
+    # [TEXT_PROCESSING]
+
+    def count_slashes(self, text):
+        """Считает количество слешей в тексте"""
+        if not text:
+            return 0
+        return text.count('\\')
+
+    def unescape_string(self, text):
+        """Раскодирует экранированные символы в строке"""
+        if not text:
+            return ""
+        
+        # Сначала обрабатываем двойные слеши (один слеш в игре)
+        result = text.replace('\\\\', '\\')
+        
+        # Затем обрабатываем другие escape-последовательности
+        replacements = [
+            ('\\"', '"'),
+            ('\\n', '\n'),
+            ('\\t', '\t'),
+            ('\\r', '\r'),
+        ]
+        
+        for old, new in replacements:
+            result = result.replace(old, new)
+        
+        return result
+    
+    def generate_content_from_data(self, lines_data):
+        """Generates lua dictionary content from specific lines data (for multi-locale save)
+        Correctly handles multi-line entries by grouping them by key.
+        """
+        # Группируем строки по ключу
+        translations = {}
+        for item in lines_data:
+            key = item['key']
+            if key not in translations:
+                translations[key] = []
+            
+            # Используем перевод, даже если он пустой ('')
+            # Падаем на оригинал только если данных о переводе вообще нет (None)
+            val = item.get('translated_text')
+            if val is None:
+                val = item.get('original_text', '')
+            
+            translations[key].append(val)
+            
+        content = "dictionary = \n{\n"
+        
+        for key, lines in translations.items():
+            if not lines:
+                continue
+                
+            if len(lines) == 1:
+                # Обычная строка
+                value = self.escape_string(lines[0])
+                content += f'    ["{key}"] = "{value}",\n'
+            else:
+                # Многострочная запись
+                # Первая строка
+                val0 = self.escape_string(lines[0])
+                content += f'    ["{key}"] = "{val0}\\\n'
+                
+                # Средние строки
+                for i in range(1, len(lines) - 1):
+                    val_i = self.escape_string(lines[i])
+                    content += f'{val_i}\\\n'
+                
+                # Последняя строка
+                val_last = self.escape_string(lines[-1])
+                content += f'{val_last}",\n'
+                
+        content += "} -- end of dictionary\n"
+        return content
+
+    def escape_string(self, text):
+        """Кодирует специальные символы для сохранения в файл"""
+        if not text:
+            return ""
+        
+        result = text
+        
+        # ВАЖНО: сначала экранируем обратные слеши
+        result = result.replace('\\', '\\\\')
+        
+        # Затем экранируем кавычки
+        result = result.replace('"', '\\"')
+        
+        # Затем другие управляющие символы
+        result = result.replace('\n', '\\n')
+        result = result.replace('\t', '\\t')
+        result = result.replace('\r', '\\r')
+        
+        return result
+    
+    def copy_all_english(self):
+        """Копирует весь английский текст в буфер обмена"""
+        if not self.original_lines:
+            self.statusBar().showMessage(get_translation(self.current_language, 'status_no_lines_to_copy'))
+            return
+        
+        english_lines = []
+        backslash_lines = []
+        
+        for i, line_data in enumerate(self.original_lines):
+            # Без ключей при копировании
+            clean_text = line_data['display_text'].replace('\n', ' ')
+            
+            # Отмечаем строки со слешами
+            if line_data.get('ends_with_backslash', False):
+                backslash_lines.append(i + 1)
+                clean_text += " [добавьте \\ в конце]"
+            
+            english_lines.append(clean_text)
+        
+        english_text = '\n'.join(english_lines)
+        
+        # Проверяем, включено ли добавление контекста (через тоггл или переменную)
+        is_context_enabled = self.add_context_toggle.isChecked() if hasattr(self, 'add_context_toggle') else getattr(self, 'add_context', True)
+        
+        # Добавляем контекст (только основной) если включено
+        if is_context_enabled and hasattr(self, 'ai_context_1') and self.ai_context_1.strip():
+            # Очищаем контекст от лишних пробелов в конце и добавляем двойной перенос для пустой строки
+            english_text = self.ai_context_1.strip() + "\n\n" + english_text
+            
+        QApplication.clipboard().setText(english_text)
+        
+        # Показываем информацию внизу, без всплывающих окон
+        if backslash_lines:
+            shown = backslash_lines[:20]
+            more = len(backslash_lines) - len(shown)
+            tail = f" (+{more})" if more > 0 else ""
+            self.statusBar().showMessage(
+                f"✅ Скопировано {len(english_lines)} строк. ⚠ Строки со слешом: {', '.join(map(str, shown))}{tail}"
+            )
+        else:
+            self.statusBar().showMessage(get_translation(self.current_language, 'status_copied', count=len(english_lines)))
+    
+    def paste_from_clipboard(self):
+        """Вставляет текст из буфера обмена Windows"""
+        clipboard = QApplication.clipboard()
+        text = clipboard.text()
+        
+        if text:
+            self.translated_text_all.setPlainText(text)
+            self.statusBar().showMessage(get_translation(self.current_language, 'status_text_pasted'))
+        else:
+            self.statusBar().showMessage(get_translation(self.current_language, 'status_clipboard_empty'))
+    
+    def clear_current_data(self):
+        """Полностью очищает текущие данные перед загрузкой нового файла"""
+        self.original_lines = []
+        self.all_lines_data = []
+        self.extra_translation_lines = []
+        self.search_matches = []
+        self.current_match_index = -1
+        self.audio_labels_map = {}
+        
+        if hasattr(self, 'miz_resource_manager'):
+            self.miz_resource_manager.reset()
+            
+        # Обновляем плейлист в открытом плеере
+        if hasattr(self, 'audio_player') and self.audio_player:
+            self.audio_player.refresh_playlist()
+        
+        self.miz_trans_memory = {}
+        self.reference_data = {}
+        self.cmp_reference_data = {}
+        
+        # Скрываем кнопку эвристики
+        if hasattr(self, 'heuristic_toggle_btn'):
+            self.heuristic_toggle_btn.setVisible(False)
+        
+        # Очищаем виджеты
+        self.prevent_text_changed = True
+        if hasattr(self, 'original_text_all'):
+            self.original_text_all.clear()
+        if hasattr(self, 'translated_text_all'):
+            self.translated_text_all.clear()
+        
+        # СТОП отрисовки предпросмотра
+        if hasattr(self, 'preview_batch_timer'):
+            self.preview_batch_timer.stop()
+        self.preview_groups_queue = []
+        
+        self.clear_preview_widgets()
+        
+        # Сброс статистики
+        if hasattr(self, 'stats_label'):
+            self.update_translation_stats()
+        
+        if hasattr(self, 'english_count_label'):
+            self.english_count_label.setText(get_translation(self.current_language, 'english_count_label', count=0))
+        if hasattr(self, 'russian_count_label'):
+            self.russian_count_label.setText(get_translation(self.current_language, 'russian_count_label', filled=0, total=0))
+        if hasattr(self, 'preview_info'):
+            self.preview_info.setText(get_translation(self.current_language, 'preview_info', count=0))
+            
+        # Сбрасываем выбор в аудиоплеере при загрузке нового файла
+        if hasattr(self, 'audio_player') and self.audio_player is not None:
+            self.audio_player.reset_to_no_file()
+             
+        self.prevent_text_changed = False
+
+        if hasattr(self, 'btn_briefing'):
+            self.btn_briefing.setEnabled(False)
+        self.is_dictionary_mode = False
+        print("DEBUG: Current data cleared")
+    
+    # [BOOKMARK_METHODS]
+    
+    # ── Настройки цветов закладок (редактируйте здесь) ──
+    # Формат: (символ, цвет_иконки, цвет_фона_rgba)
+    BOOKMARK_VISUALS = {
+        'star':     ('★', '#ff9900'),      # Тёмно-оранжевый
+        'question': ('?', '#4CAF50'),     # Тёмно-зелёный
+        'alert':    ('!', '#FF5252'),      # Тёмно-красный
+    }
+    BOOKMARK_EMPTY = ('☆', '#666666', 'transparent')
+
+    def _get_bookmark_visual(self, key):
+        """Возвращает (символ, цвет_иконки, цвет_фона) для закладки по ключу данных"""
+        bm = self.bookmarks_data.get(key)
+        if bm:
+            b_type = bm.get('type', 'star')
+            sym, icon_c = self.BOOKMARK_VISUALS.get(b_type, self.BOOKMARK_VISUALS['star'])
+            
+            # Получаем цвет из настроек или дефолтный
+            if b_type == 'star':
+                bg_color_hex = getattr(self, 'bookmark_bg_star', '#967800')
+            elif b_type == 'alert':
+                bg_color_hex = getattr(self, 'bookmark_bg_alert', '#5a0000')
+            else:
+                bg_color_hex = getattr(self, 'bookmark_bg_question', '#0f5000')
+            
+            # Получаем прозрачность из настроек (от 0.0 до 1.0)
+            opacity = getattr(self, 'bookmark_bg_opacity', 0.70)
+            
+            # Конвертируем HEX в RGBA
+            hex_color = bg_color_hex.lstrip('#')
+            if len(hex_color) == 6:
+                r, g, b = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+                bg_t = f"rgba({r}, {g}, {b}, {opacity})"
+            else:
+                bg_t = f"rgba(150, 120, 0, {opacity})"
+                
+            return (sym, icon_c, bg_t)
+        return self.BOOKMARK_EMPTY
+
+    def load_bookmarks(self, file_path):
+        """Загружает закладки для указанного файла из bookmarks.json (с миграцией старого формата)"""
+        self.bookmarks_data = {}
+        try:
+            if os.path.exists(self.bookmarks_file):
+                with open(self.bookmarks_file, 'r', encoding='utf-8') as f:
+                    all_bookmarks = json.load(f)
+                fkey = os.path.normpath(file_path)
+                if fkey in all_bookmarks:
+                    data = all_bookmarks[fkey]
+                    if isinstance(data, list):
+                        # Миграция старого формата: список ключей → словарь
+                        self.bookmarks_data = {k: {"type": "star", "comment": ""} for k in data}
+                        # Сохраняем в новом формате
+                        self._save_bookmarks_raw(all_bookmarks, fkey)
+                    elif isinstance(data, dict):
+                        self.bookmarks_data = data
+                        # Нормализация: гарантируем наличие 'comment' у каждой закладки
+                        for bk in self.bookmarks_data.values():
+                            if 'comment' not in bk:
+                                bk['comment'] = ''
+        except Exception as e:
+            print(f"WARNING: Ошибка загрузки закладок: {e}")
+            self.bookmarks_data = {}
+    
+    def _save_bookmarks_raw(self, all_bookmarks, fkey):
+        """Вспомогательная перезапись после миграции"""
+        try:
+            all_bookmarks[fkey] = self.bookmarks_data
+            with open(self.bookmarks_file, 'w', encoding='utf-8') as f:
+                json.dump(all_bookmarks, f, ensure_ascii=False, indent=2)
+        except Exception:
+            pass
+    
+    def save_bookmarks(self):
+        """Сохраняет закладки текущего файла в bookmarks.json"""
+        try:
+            file_path = getattr(self, 'current_miz_path', None) or getattr(self, 'current_file_path', None)
+            if not file_path:
+                return
+            
+            all_bookmarks = {}
+            if os.path.exists(self.bookmarks_file):
+                try:
+                    with open(self.bookmarks_file, 'r', encoding='utf-8') as f:
+                        all_bookmarks = json.load(f)
+                except Exception:
+                    all_bookmarks = {}
+            
+            fkey = os.path.normpath(file_path)
+            if self.bookmarks_data:
+                all_bookmarks[fkey] = self.bookmarks_data
+            elif fkey in all_bookmarks:
+                del all_bookmarks[fkey]
+            
+            with open(self.bookmarks_file, 'w', encoding='utf-8') as f:
+                json.dump(all_bookmarks, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            print(f"WARNING: Ошибка сохранения закладок: {e}")
+    
+    def toggle_bookmark(self, key, bookmark_label, meta_widget):
+        """ЛКМ: Toggle звезды (установить/снять). Если стоит другой тип — снимает."""
+        if key in self.bookmarks_data:
+            # Снимаем закладку, но сохраняем комментарий
+            saved_comment = self.bookmarks_data[key].get('comment', '')
+            del self.bookmarks_data[key]
+            self._apply_bookmark_visual(key, bookmark_label, meta_widget, active=False)
+            # Сохраняем комментарий в атрибуте для возможного восстановления
+            if saved_comment:
+                if not hasattr(self, '_saved_bookmark_comments'):
+                    self._saved_bookmark_comments = {}
+                self._saved_bookmark_comments[key] = saved_comment
+        else:
+            # Восстанавливаем комментарий, если он был
+            restored_comment = ''
+            if hasattr(self, '_saved_bookmark_comments') and key in self._saved_bookmark_comments:
+                restored_comment = self._saved_bookmark_comments.pop(key)
+            self.bookmarks_data[key] = {"type": "star", "comment": restored_comment}
+            self._apply_bookmark_visual(key, bookmark_label, meta_widget, active=True)
+        self.save_bookmarks()
+        self.update_bookmark_navigation_ui()
+    
+    def set_bookmark_type(self, key, bm_type, bookmark_label, meta_widget):
+        """Устанавливает конкретный тип закладки"""
+        existing = self.bookmarks_data.get(key, {})
+        comment = existing.get('comment', '')
+        # Восстанавливаем сохранённый комментарий, если bookmark был снят
+        if not comment and hasattr(self, '_saved_bookmark_comments') and key in self._saved_bookmark_comments:
+            comment = self._saved_bookmark_comments.pop(key)
+        self.bookmarks_data[key] = {"type": bm_type, "comment": comment}
+        self._apply_bookmark_visual(key, bookmark_label, meta_widget, active=True)
+        self.save_bookmarks()
+        self.update_bookmark_navigation_ui()
+
+    def cycle_bookmark_type(self, key, bookmark_label, meta_widget):
+        """Циклически переключает типы: star -> alert -> question -> star."""
+        # Состояние ДО первого клика сохранено в mw._prev_bm_type
+        prev_type = getattr(meta_widget, '_prev_bm_type', None)
+        
+        # Последовательность: None -> Alert, Star -> Alert, Alert -> Question, Question -> Star
+        if prev_type is None:
+            new_type = 'alert'
+        elif prev_type == 'star':
+            new_type = 'alert'
+        elif prev_type == 'alert':
+            new_type = 'question'
+        elif prev_type == 'question':
+            new_type = 'star'
+        else:
+            new_type = 'star'
+            
+        existing = self.bookmarks_data.get(key, {})
+        comment = existing.get('comment', '')
+        # Восстанавливаем сохранённый комментарий, если bookmark был снят (например, первый клик при double-click)
+        if not comment and hasattr(self, '_saved_bookmark_comments') and key in self._saved_bookmark_comments:
+            comment = self._saved_bookmark_comments.pop(key)
+        self.bookmarks_data[key] = {"type": new_type, "comment": comment}
+        
+        self._apply_bookmark_visual(key, bookmark_label, meta_widget, active=True)
+        self.save_bookmarks()
+        self.update_bookmark_navigation_ui()
+    
+    def _apply_bookmark_visual(self, key, bookmark_label, meta_widget, active):
+        """Обновляет визуал одной закладки (иконка + фон строки)"""
+        if active:
+            symbol, color, bg = self._get_bookmark_visual(key)
+            bookmark_label.setText(symbol)
+            bookmark_label.setStyleSheet(f"color: {color}; font-size: 14px; font-weight: bold; background: transparent; border: none; padding: 0px;")
+        else:
+            bookmark_label.setText("☆")
+            bookmark_label.setStyleSheet("color: #666666; font-size: 14px; background: transparent; border: none; padding: 0px;")
+            idx = getattr(meta_widget, '_zebra_index', 0)
+            bg = self.theme_bg_even if idx % 2 == 0 else self.theme_bg_odd
+        
+        style = f'''
+            QWidget#preview_line_group {{
+                background-color: {bg};
+                border-bottom: 1px solid #333;
+                border-radius: 0px;
+            }}
+        '''
+        meta_widget.setStyleSheet(style)
+        # Также обновляем фон для orig и trans виджетов
+        if hasattr(self, 'preview_key_to_group_widget') and key in self.preview_key_to_group_widget:
+            _, orig_w, trans_w = self.preview_key_to_group_widget[key]
+            if orig_w: orig_w.setStyleSheet(style)
+            if trans_w: trans_w.setStyleSheet(style)
+        
+        self._refresh_bookmark_comment_preview(key)
+
+    def _refresh_bookmark_comment_preview(self, key):
+        """Обновляет предпросмотр комментария для конкретного ключа без перерисовки всей панели."""
+        if not hasattr(self, 'preview_key_to_group_widget') or key not in self.preview_key_to_group_widget:
+            return
+            
+        widgets = self.preview_key_to_group_widget[key]
+        meta_widget = widgets[0]
+        
+        # Данные закладки
+        bookmark_info = self.bookmarks_data.get(key)
+        comment_text = bookmark_info.get('comment', '') if bookmark_info else ""
+        short_comment = comment_text.split('\n')[0].strip() if comment_text else ""
+        if len(short_comment) > 40: short_comment = short_comment[:40] + "..."
+        
+        has_extras = hasattr(meta_widget, 'extras_layout')
+        if not has_extras:
+            # Нет контейнера (ключ без аудио, без закладки при рендере) — создаём динамически
+            if not short_comment:
+                return  # Нечего показывать, контейнер не нужен
+            extras_layout = QHBoxLayout()
+            extras_layout.setContentsMargins(0, 0, 0, 0)
+            extras_layout.setSpacing(8)
+            extras_layout.addStretch()
+            meta_layout = meta_widget.layout()
+            if meta_layout:
+                # Вставляем ПЕРЕД финальным stretch (если он есть)
+                stretch_idx = meta_layout.count() - 1
+                if stretch_idx >= 0:
+                    meta_layout.insertLayout(stretch_idx, extras_layout)
+                else:
+                    meta_layout.addLayout(extras_layout)
+            meta_widget.extras_layout = extras_layout
+        
+        extras_layout = meta_widget.extras_layout
+        comment_label = getattr(meta_widget, 'comment_label', None)
+        
+        changed = False
+        if short_comment:
+            if comment_label:
+                # Обновляем существующий
+                if comment_label.text() != short_comment or comment_label.isHidden():
+                    comment_label.setText(short_comment)
+                    comment_label.show()
+                    changed = True
+                # Обновляем тултип
+                self.register_custom_tooltip(comment_label, comment_text, side='top')
+            else:
+                # Создаем новый
+                comment_label = QLabel(short_comment)
+                comment_label.setStyleSheet("""
+                    QLabel {
+                        color: #ffffff;
+                        background-color: rgba(50, 50, 50, 245);
+                        border: 1px solid #ff9900;
+                        border-radius: 4px;
+                        padding: 1px 6px;
+                        font-size: 11px;
+                    }
+                """)
+                comment_label.setMaximumWidth(150)
+                # Вставляем ПЕРЕД stretch (stretch обычно последний)
+                extras_layout.insertWidget(extras_layout.count() - 1, comment_label, 0, Qt.AlignVCenter)
+                self.register_custom_tooltip(comment_label, comment_text, side='top')
+                meta_widget.comment_label = comment_label
+                changed = True
+        else:
+            # Скрываем если есть
+            if comment_label and not comment_label.isHidden():
+                comment_label.hide()
+                changed = True
+        
+        # Пересчитываем высоту строки, если что-то изменилось
+        if changed:
+            from PyQt5.QtCore import QTimer
+            QTimer.singleShot(10, lambda: self._resync_row_height(key))
+    
+    def _resync_row_height(self, key):
+        """Пересчитывает высоту строки превью для заданного ключа (все 3 колонки)."""
+        if not hasattr(self, 'preview_key_to_group_widget') or key not in self.preview_key_to_group_widget:
+            return
+        meta_w, orig_w, trans_w = self.preview_key_to_group_widget[key]
+        
+        # Сначала заставляем каждый текстовый редактор пересчитать свою необходимую высоту
+        from widgets import PreviewTextEdit
+        for w in (orig_w, trans_w):
+            if w:
+                for edit in w.findChildren(PreviewTextEdit):
+                    edit.adjust_height()
+                    
+        # Затем выравниваем сами контейнеры по максимальной высоте
+        heights = []
+        for w in (meta_w, orig_w, trans_w):
+            if w:
+                w.setMinimumHeight(0)
+                w.setMaximumHeight(16777215)
+                
+                # Форсируем пересчет макета
+                if w.layout():
+                    w.layout().invalidate()
+                    w.layout().activate()
+                    # Для meta_widget считаем высоту более агрессивно,
+                    # так как sizeHint() виджета может кэшироваться,
+                    # а layout().minimumSize() иногда игнорирует вложенные лэйауты без констрейнтов
+                    if w == meta_w:
+                        h = w.layout().minimumSize().height() + w.layout().contentsMargins().top() + w.layout().contentsMargins().bottom()
+                        # Если есть видимый комментарий, гарантируем что под него есть место
+                        comment_label = getattr(w, 'comment_label', None)
+                        if comment_label and not comment_label.isHidden():
+                            # Высота текста + отступы лэйаутов
+                            comment_h = comment_label.sizeHint().height() + 5 
+                            if h < comment_h + 20: # 20 - примерная высота верхнего ряда (ключ/аудио)
+                                h = comment_h + 20
+                        heights.append(h)
+                    else:
+                        heights.append(w.sizeHint().height())
+                        
+        if heights:
+            row_h = max(heights)
+            for w in (meta_w, orig_w, trans_w):
+                if w:
+                    w.setFixedHeight(row_h)
+
+    def refresh_bookmark_visuals(self):
+        """Обновляет цвета фона закладок в превью без перерисовки (вызывается из настроек)."""
+        if not hasattr(self, 'bookmark_labels_map') or not hasattr(self, 'preview_key_to_group_widget'):
+            return
+        for key, bookmark_label in self.bookmark_labels_map.items():
+            if key in self.bookmarks_data and key in self.preview_key_to_group_widget:
+                widgets = self.preview_key_to_group_widget[key]
+                meta_widget = widgets[0] if isinstance(widgets, (tuple, list)) else widgets.get('meta')
+                if meta_widget:
+                    self._apply_bookmark_visual(key, bookmark_label, meta_widget, active=True)
+
+    def update_bookmark_navigation_ui(self):
+        """Обновляет счетчик и состояние навигации по закладкам"""
+        try:
+            # Находим индексы строк в текущем отображении, у которых есть закладки
+            self.active_bookmark_indices = []
+            seen_keys = set()
+            if hasattr(self, 'original_lines'):
+                for i, line in enumerate(self.original_lines):
+                    key = line.get('key')
+                    if key in self.bookmarks_data and key not in seen_keys:
+                        self.active_bookmark_indices.append(i)
+                        seen_keys.add(key)
+            
+            total = len(self.active_bookmark_indices)
+            
+            if total == 0:
+                self.current_bookmark_nav_index = -1
+                self.bm_nav_counter.setText("0 / 0")
+            else:
+                # Если текущий индекс вышел за пределы
+                if self.current_bookmark_nav_index >= total:
+                    self.current_bookmark_nav_index = total - 1
+                elif self.current_bookmark_nav_index < 0 and total > 0:
+                     # Если сброшено, но закладки есть - не ставим автоматом 0, 
+                     # пусть пользователь сам нажмет кнопку для первого перехода
+                     pass
+                
+                idx_display = self.current_bookmark_nav_index + 1 if self.current_bookmark_nav_index >= 0 else 0
+                self.bm_nav_counter.setText(f"{idx_display} / {total}")
+            
+            # Включаем/выключаем кнопки
+            self.bm_prev_btn.setEnabled(total > 0)
+            self.bm_next_btn.setEnabled(total > 0)
+            
+        except Exception as e:
+            print(f"DEBUG: Error updating bookmark nav UI: {e}")
+
+    def jump_to_next_bookmark(self):
+        """Переход к следующей закладке"""
+        if not hasattr(self, 'active_bookmark_indices') or not self.active_bookmark_indices:
+            self.update_bookmark_navigation_ui()
+        if not self.active_bookmark_indices:
+            return
+            
+        self.current_bookmark_nav_index += 1
+        if self.current_bookmark_nav_index >= len(self.active_bookmark_indices):
+            self.current_bookmark_nav_index = 0
+            
+        self._perform_bookmark_jump()
+
+    def jump_to_prev_bookmark(self):
+        """Переход к предыдущей закладке"""
+        if not hasattr(self, 'active_bookmark_indices') or not self.active_bookmark_indices:
+            self.update_bookmark_navigation_ui()
+        if not self.active_bookmark_indices:
+            return
+            
+        self.current_bookmark_nav_index -= 1
+        if self.current_bookmark_nav_index < 0:
+            self.current_bookmark_nav_index = len(self.active_bookmark_indices) - 1
+            
+        self._perform_bookmark_jump()
+
+    def _perform_bookmark_jump(self):
+        try:
+            if not self.active_bookmark_indices:
+                return
+            line_idx = self.active_bookmark_indices[self.current_bookmark_nav_index]
+            # Устанавливаем фокус на область прокрутки перед прыжком
+            self.preview_scroll.setFocus()
+            # Принудительно вызываем обработку событий, чтобы UI был готов
+            from PyQt5.QtWidgets import QApplication
+            QApplication.processEvents()
+            # Используем стандартный метод скролла приложения
+            self.highlight_search_match(line_idx, match_type='meta')
+            # Обновляем текст счетчика, так как индекс изменился
+            self.update_bookmark_navigation_ui()
+        except Exception as e:
+            print(f"DEBUG: Jump to bookmark failed: {e}")
+
+    def show_bookmark_context_menu(self, key, bookmark_label, meta_widget, global_pos):
+        """ПКМ: Контекстное меню закладки"""
+        from PyQt5.QtWidgets import QMenu
+        from PyQt5.QtGui import QIcon, QPixmap, QPainter, QColor, QFont
+        from PyQt5.QtCore import Qt
+        
+        menu = QMenu()
+        menu.setStyleSheet("""
+            QMenu {
+                background-color: #3a3a3a;
+                color: #ffffff;
+                border: 1px solid #777;
+                padding: 4px;
+            }
+            QMenu::item {
+                padding: 6px 15px 6px 15px;
+                background-color: transparent;
+            }
+            QMenu::item:selected {
+                background-color: #ff9900;
+                color: #000000;
+            }
+            QMenu::icon {
+                padding-left: 5px;
+            }
+            QMenu::separator {
+                height: 1px;
+                background: #555;
+                margin: 4px 8px;
+            }
+        """)
+        
+        lang = self.current_language
+        
+        def _create_icon(sym_text):
+            # Always White
+            pix = QPixmap(16, 16)
+            pix.fill(Qt.transparent)
+            p = QPainter(pix)
+            p.setRenderHint(QPainter.Antialiasing)
+            p.setPen(QColor("#ffffff"))
+            f = p.font()
+            f.setPointSize(11)
+            f.setBold(True)
+            p.setFont(f)
+            p.drawText(pix.rect(), Qt.AlignCenter, sym_text)
+            p.end()
+            
+            icon = QIcon()
+            icon.addPixmap(pix, QIcon.Normal, QIcon.Off)
+            icon.addPixmap(pix, QIcon.Normal, QIcon.On)
+            icon.addPixmap(pix, QIcon.Active, QIcon.Off)
+            icon.addPixmap(pix, QIcon.Active, QIcon.On)
+            icon.addPixmap(pix, QIcon.Selected, QIcon.Off)
+            icon.addPixmap(pix, QIcon.Selected, QIcon.On)
+            return icon
+            
+        def _add_action(menu, translation_key, callback):
+            raw = get_translation(lang, translation_key)
+            parts = raw.split(' ', 1)
+            sym = parts[0] if len(parts) > 1 else ''
+            txt = parts[1] if len(parts) > 1 else raw
+            act = menu.addAction(_create_icon(sym), txt)
+            act.triggered.connect(callback)
+            return act
+
+        # Пункты установки типа
+        _add_action(menu, 'bookmark_set_star', lambda: self.set_bookmark_type(key, 'star', bookmark_label, meta_widget))
+        _add_action(menu, 'bookmark_set_alert', lambda: self.set_bookmark_type(key, 'alert', bookmark_label, meta_widget))
+        _add_action(menu, 'bookmark_set_question', lambda: self.set_bookmark_type(key, 'question', bookmark_label, meta_widget))
+        
+        menu.addSeparator()
+        
+        # Комментарий
+        comm_raw = get_translation(lang, 'bookmark_comment')
+        comm_parts = comm_raw.split(' ', 1)
+        comm_sym = comm_parts[0] if len(comm_parts) > 1 else ''
+        comm_txt = comm_parts[1] if len(comm_parts) > 1 else comm_raw
+        
+        # Создаем действие "Комментарий"
+        comment_act = menu.addAction(_create_icon(comm_sym), comm_txt)
+        # Данные для eventFilter, чтобы клик открывал окно
+        comment_act._bookmark_comment_data = (key, bookmark_label, meta_widget)
+        menu.installEventFilter(self)
+        
+        # Создаем узкое подменю для быстрого удаления
+        sub_menu = QMenu(menu)
+        sub_menu.setStyleSheet("""
+            QMenu {
+                background-color: #3a3a3a;
+                border: 1px solid #777;
+                padding: 0px;
+                min-width: 40px;
+            }
+        """)
+        
+        # Контент подменю: корзина, смещенная вправо
+        from PyQt5.QtWidgets import QWidgetAction as _QWidgetAction
+        del_wa = _QWidgetAction(sub_menu)
+        sub_container = QWidget()
+        sub_container.setFixedSize(40, 32)
+        sub_container.setStyleSheet("background: transparent;")
+        sub_lay = QHBoxLayout(sub_container)
+        sub_lay.setContentsMargins(0, 0, 5, 0)
+        sub_lay.setSpacing(0)
+        
+        # Кнопка-иконка корзины (смещаем вправо)
+        del_sub_btn = QPushButton()
+        del_sub_btn.setFixedSize(32, 32)
+        del_sub_btn.setCursor(Qt.PointingHandCursor)
+        
+        def create_trash_vector(color_hex, size=18):
+            pix = QPixmap(size, size)
+            pix.fill(Qt.transparent)
+            p = QPainter(pix)
+            p.setRenderHint(QPainter.Antialiasing)
+            p.setPen(QPen(QColor(color_hex), 1.5))
+            # Корзинка (векторная отрисовка для поддержки цвета)
+            p.drawRect(4, 5, 10, 11)   # бак
+            p.drawLine(2, 4, 16, 4)    # крышка
+            p.drawRect(8, 2, 2, 2)     # ручка
+            p.drawLine(7, 7, 7, 13)    # полоска 1
+            p.drawLine(11, 7, 11, 13)  # полоска 2
+            p.end()
+            return QIcon(pix)
+
+        icon_w = create_trash_vector("#ffffff")
+        icon_o = create_trash_vector("#ff9900")
+        del_sub_btn.setIcon(icon_w)
+        del_sub_btn.setIconSize(QSize(18, 18))
+        del_sub_btn.setStyleSheet("QPushButton { background: transparent; border: none; }")
+        
+        # Гарантированный ховер через смену иконок
+        del_sub_btn.enterEvent = lambda e: del_sub_btn.setIcon(icon_o)
+        del_sub_btn.leaveEvent = lambda e: del_sub_btn.setIcon(icon_w)
+        
+        def _quick_del():
+            if key in self.bookmarks_data:
+                self.bookmarks_data[key].pop('comment', None)
+                self.save_bookmarks()
+                if tooltip_label := getattr(meta_widget, '_tooltip_label', None):
+                    tooltip_label.setToolTip("")
+                self._apply_bookmark_visual(key, bookmark_label, meta_widget, active=True)
+            sub_menu.close()
+            menu.close()
+            
+        del_sub_btn.clicked.connect(_quick_del)
+        
+        sub_lay.addStretch()
+        sub_lay.addWidget(del_sub_btn)
+        
+        del_wa.setDefaultWidget(sub_container)
+        sub_menu.addAction(del_wa)
+        comment_act.setMenu(sub_menu)
+        
+        menu.addSeparator()
+        
+        # Очистить все
+        _add_action(menu, 'bookmark_clear_all', lambda: self._clear_all_bookmarks())
+        
+        menu.exec_(global_pos)
+    
+    def _edit_bookmark_comment(self, key, bookmark_label, meta_widget):
+        """Открывает кастомный диалог комментария в стиле приложения"""
+        lang = self.current_language
+        current_comment = self.bookmarks_data.get(key, {}).get('comment', '')
+        
+        # Создаём кастомный диалог
+        dialog = QDialog(self)
+        dialog.setWindowFlags(Qt.FramelessWindowHint | Qt.Dialog)
+        dialog.setAttribute(Qt.WA_TranslucentBackground)
+        dialog.setFixedSize(400, 250)
+        
+        # Основной контейнер с кастомной отрисовкой для исключительной четкости рамок
+        class SharpContainer(QWidget):
+            def paintEvent(self, event):
+                p = QPainter(self)
+                # Выключаем сглаживание для идеально четких линий (1px)
+                p.setRenderHint(QPainter.Antialiasing, False)
+                p.setBrush(QColor("#3a3a3a"))
+                p.setPen(QPen(QColor("#ff9900"), 1))
+                # Рисуем прямоугольник со скруглением, но без сглаживания рамки
+                # Чтобы скругление было ровным, можно включить его только для контура, 
+                # но пользователь просил "без сглаживания", так что рисуем классику.
+                rect = self.rect().adjusted(0, 0, -1, -1)
+                p.drawRoundedRect(rect, 10, 10)
+                p.end()
+
+        container = SharpContainer(dialog)
+        container.setObjectName("bm_comment_container")
+        container.setGeometry(0, 0, 400, 250)
+        
+        # Стилизация внутренних элементов (панели и поля)
+        container.setStyleSheet("""
+            QWidget#bm_bottom_panel {
+                background-color: #2b2b2b;
+                border-top: 1px solid #555;
+                border-bottom-left-radius: 9px;
+                border-bottom-right-radius: 9px;
+            }
+            QPlainTextEdit {
+                background-color: #2b2b2b;
+                color: #ffffff;
+                border: 1px solid #666;
+                border-radius: 0px; /* Без скругления для четкости */
+                padding: 8px;
+                font-size: 13px;
+            }
+            QPlainTextEdit:focus {
+                border-color: #ff9900;
+            }
+        """)
+        
+        main_layout = QVBoxLayout(container)
+        main_layout.setContentsMargins(1, 1, 1, 1)
+        main_layout.setSpacing(0)
+        
+        # Контейнер для контента (чтобы не рисовать на SharpContainer напрямую лояуты)
+        upper_part = QWidget()
+        upper_layout = QVBoxLayout(upper_part)
+        upper_layout.setContentsMargins(20, 15, 20, 10)
+        upper_layout.setSpacing(10)
+        
+        # Заголовок
+        title = QLabel(get_translation(lang, 'bookmark_comment_title'))
+        title.setStyleSheet("color: #ffffff; font-weight: bold; font-size: 14px; background: transparent; border: none;")
+        title.setAlignment(Qt.AlignCenter)
+        upper_layout.addWidget(title)
+        
+        # Поле ввода
+        from PyQt5.QtWidgets import QPlainTextEdit as _QPlainTextEdit
+        text_edit = _QPlainTextEdit(current_comment)
+        text_edit.setStyleSheet("""
+            QPlainTextEdit {
+                background-color: #2b2b2b;
+                color: #ffffff;
+                border: 1px solid #666;
+                border-radius: 5px;
+                padding: 8px;
+                font-size: 13px;
+            }
+            QPlainTextEdit:focus {
+                border-color: #ff9900;
+            }
+        """)
+        text_edit.setMinimumHeight(80)
+        upper_layout.addWidget(text_edit)
+        
+        main_layout.addWidget(upper_part)
+        main_layout.addStretch()
+        
+        # Нижняя панель с кнопками
+        bottom_panel = QWidget()
+        bottom_panel.setStyleSheet("""
+            QWidget#bm_bottom_panel {
+                background-color: #2b2b2b;
+                border-top: 1px solid #555;
+                border-bottom-left-radius: 9px;
+                border-bottom-right-radius: 9px;
+            }
+        """)
+        bottom_panel.setObjectName("bm_bottom_panel")
+        bottom_panel.setFixedHeight(60)
+        
+        btn_layout = QHBoxLayout(bottom_panel)
+        btn_layout.setContentsMargins(15, 0, 15, 0)
+        btn_layout.setSpacing(10)
+        
+        # Кнопка удаления комментария (слева)
+        del_btn = QPushButton()
+        del_btn.setFixedSize(32, 32)
+        del_btn.setCursor(Qt.PointingHandCursor)
+        self.register_custom_tooltip(del_btn, get_translation(lang, 'delete_comment_tooltip'))
+        
+        # Используем векторную отрисовку для поддержки цвета ховера
+        def create_trash_vector_diag(color_hex, size=24):
+            pix = QPixmap(size, size)
+            pix.fill(Qt.transparent)
+            p = QPainter(pix)
+            p.setRenderHint(QPainter.Antialiasing)
+            p.setPen(QPen(QColor(color_hex), 1.5))
+            # Рисуем корпус
+            p.drawRect(6, 8, 12, 12)  # бак
+            p.drawLine(4, 6, 20, 6)   # крышка
+            p.drawRect(10, 3, 4, 3)   # ручка
+            # Прорези
+            p.drawLine(9, 10, 9, 18)
+            p.drawLine(12, 10, 12, 18)
+            p.drawLine(15, 10, 15, 18)
+            p.end()
+            return QIcon(pix)
+            
+        icon_dw = create_trash_vector_diag("#ffffff")
+        icon_do = create_trash_vector_diag("#ff9900")
+        del_btn.setIcon(icon_dw)
+        del_btn.setIconSize(QSize(22, 22))
+        del_btn.setStyleSheet("QPushButton { background: transparent; border: none; }")
+        
+        del_btn.enterEvent = lambda e: del_btn.setIcon(icon_do)
+        del_btn.leaveEvent = lambda e: del_btn.setIcon(icon_dw)
+        
+        def _on_del():
+            text_edit.setPlainText("")
+            dialog.accept()
+            
+        del_btn.clicked.connect(_on_del)
+        btn_layout.addWidget(del_btn)
+        
+        btn_layout.addStretch()
+        
+        # Общий стиль кнопок как в Settings
+        btn_base_style = """
+            QPushButton {
+                color: #000000;
+                border: none;
+                border-radius: 16px;
+                font-weight: bold;
+                font-size: 12px;
+            }
+        """
+        
+        cancel_btn = QPushButton(get_translation(lang, 'cancel_btn'))
+        cancel_btn.setFixedSize(120, 32)
+        cancel_btn.setStyleSheet(btn_base_style + """
+            QPushButton { background-color: #ffffff; }
+            QPushButton:hover { background-color: #a3a3a3; }
+        """)
+        cancel_btn.setCursor(Qt.PointingHandCursor)
+        cancel_btn.clicked.connect(dialog.reject)
+        
+        save_text = get_translation(lang, 'save_btn')
+        # Убираем эмодзи дискеты только для этого окна
+        save_text = save_text.replace('💾 ', '').replace('💾', '').strip()
+        
+        save_btn = QPushButton(save_text)
+        save_btn.setFixedSize(120, 32)
+        save_btn.setStyleSheet(btn_base_style + """
+            QPushButton { background-color: #ff9900; }
+            QPushButton:hover { background-color: #e68a00; }
+        """)
+        save_btn.setCursor(Qt.PointingHandCursor)
+        save_btn.clicked.connect(dialog.accept)
+        
+        btn_layout.addWidget(cancel_btn)
+        btn_layout.addWidget(save_btn)
+        
+        main_layout.addWidget(bottom_panel)
+        
+        # Перетаскивание диалога
+        dialog._drag_pos = None
+        def _mp(e):
+            if e.button() == Qt.LeftButton:
+                child = dialog.childAt(e.pos())
+                if not isinstance(child, (QPushButton, _QPlainTextEdit)):
+                    dialog._drag_pos = e.globalPos() - dialog.frameGeometry().topLeft()
+                    e.accept()
+        def _mm(e):
+            if dialog._drag_pos and (e.buttons() & Qt.LeftButton):
+                dialog.move(e.globalPos() - dialog._drag_pos)
+                e.accept()
+        def _mr(e):
+            dialog._drag_pos = None
+        dialog.mousePressEvent = _mp
+        dialog.mouseMoveEvent = _mm
+        dialog.mouseReleaseEvent = _mr
+        
+        # Центрируем относительно главного окна
+        dialog.move(
+            self.x() + (self.width() - dialog.width()) // 2,
+            self.y() + (self.height() - dialog.height()) // 2
+        )
+
+        if dialog.exec_() == QDialog.Accepted:
+            text = text_edit.toPlainText()
+            if key not in self.bookmarks_data:
+                self.bookmarks_data[key] = {"type": "star", "comment": text}
+                self._apply_bookmark_visual(key, bookmark_label, meta_widget, active=True)
+            else:
+                self.bookmarks_data[key]['comment'] = text
+            self.save_bookmarks()
+            self._refresh_bookmark_comment_preview(key)
+    
+    def _clear_all_bookmarks(self):
+        """Очищает все закладки текущей миссии после подтверждения (кастомный диалог)"""
+        lang = self.current_language
+        
+        # Кастомный диалог подтверждения
+        dialog = QDialog(self)
+        dialog.setWindowFlags(Qt.FramelessWindowHint | Qt.Dialog)
+        dialog.setAttribute(Qt.WA_TranslucentBackground)
+        dialog.setFixedSize(380, 160)
+        
+        container = QWidget(dialog)
+        container.setGeometry(0, 0, 380, 160)
+        
+        # Кастомная отрисовка для четкости (без сглаживания)
+        def _paint_sharp(self, event):
+            p = QPainter(self)
+            p.setRenderHint(QPainter.Antialiasing, False)
+            p.setBrush(QColor("#3a3a3a"))
+            p.setPen(QPen(QColor("#ff9900"), 1))
+            rect = self.rect().adjusted(0, 0, -1, -1)
+            p.drawRoundedRect(rect, 10, 10)
+            p.end()
+        container.paintEvent = lambda e, w=container: _paint_sharp(w, e)
+
+        container.setObjectName("bm_confirm_container")
+        container.setStyleSheet("""
+            QWidget#bm_confirm_bottom {
+                background-color: #2b2b2b;
+                border-top: 1px solid #555;
+                border-bottom-left-radius: 9px;
+                border-bottom-right-radius: 9px;
+            }
+        """)
+        
+        # Главный лейаут - панель на всю ширину
+        main_layout = QVBoxLayout(container)
+        main_layout.setContentsMargins(1, 1, 1, 1)
+        main_layout.setSpacing(0)
+        
+        # Верхний контент
+        upper_part = QWidget()
+        upper_layout = QVBoxLayout(upper_part)
+        upper_layout.setContentsMargins(20, 15, 20, 10)
+        upper_layout.setSpacing(10)
+        
+        # Заголовок
+        title = QLabel(get_translation(lang, 'bookmark_clear_all'))
+        title.setStyleSheet("color: #ffffff; font-weight: bold; font-size: 14px; background: transparent; border: none;")
+        title.setAlignment(Qt.AlignCenter)
+        upper_layout.addWidget(title)
+        
+        # Текст подтверждения
+        msg = QLabel(get_translation(lang, 'bookmark_clear_all_confirm'))
+        msg.setStyleSheet("color: #cccccc; font-size: 12px; background: transparent; border: none;")
+        msg.setWordWrap(True)
+        msg.setAlignment(Qt.AlignCenter)
+        upper_layout.addWidget(msg)
+        
+        main_layout.addWidget(upper_part)
+        main_layout.addStretch()
+        
+        # Нижняя панель с кнопками
+        bottom_panel = QWidget()
+        bottom_panel.setStyleSheet("""
+            QWidget#bm_confirm_bottom {
+                background-color: #2b2b2b;
+                border-top: 1px solid #555;
+                border-bottom-left-radius: 9px;
+                border-bottom-right-radius: 9px;
+            }
+        """)
+        bottom_panel.setObjectName("bm_confirm_bottom")
+        bottom_panel.setFixedHeight(60)
+        
+        btn_layout = QHBoxLayout(bottom_panel)
+        btn_layout.setContentsMargins(15, 0, 15, 0)
+        btn_layout.setSpacing(10)
+        btn_layout.addStretch()
+        
+        btn_base_style = """
+            QPushButton {
+                border: none;
+                border-radius: 16px;
+                font-weight: bold;
+                font-size: 12px;
+            }
+        """
+        
+        no_btn = QPushButton(get_translation(lang, 'cancel_btn'))
+        no_btn.setFixedSize(120, 32)
+        no_btn.setStyleSheet(btn_base_style + """
+            QPushButton { background-color: #ffffff; color: #000000; }
+            QPushButton:hover { background-color: #a3a3a3; }
+        """)
+        no_btn.setCursor(Qt.PointingHandCursor)
+        no_btn.clicked.connect(dialog.reject)
+        
+        yes_btn = QPushButton(get_translation(lang, 'ok_btn'))
+        yes_btn.setFixedSize(120, 32)
+        yes_btn.setStyleSheet(btn_base_style + """
+            QPushButton { background-color: #FF5252; color: #ffffff; }
+            QPushButton:hover { background-color: #e04545; }
+        """)
+        yes_btn.setCursor(Qt.PointingHandCursor)
+        yes_btn.clicked.connect(dialog.accept)
+        
+        btn_layout.addWidget(no_btn)
+        btn_layout.addWidget(yes_btn)
+        
+        main_layout.addWidget(bottom_panel)
+        
+        # Перетаскивание
+        dialog._drag_pos = None
+        def _mp(e):
+            if e.button() == Qt.LeftButton:
+                child = dialog.childAt(e.pos())
+                if not isinstance(child, QPushButton):
+                    dialog._drag_pos = e.globalPos() - dialog.frameGeometry().topLeft()
+                    e.accept()
+        def _mm(e):
+            if dialog._drag_pos and (e.buttons() & Qt.LeftButton):
+                dialog.move(e.globalPos() - dialog._drag_pos)
+                e.accept()
+        def _mr(e):
+            dialog._drag_pos = None
+        dialog.mousePressEvent = _mp
+        dialog.mouseMoveEvent = _mm
+        dialog.mouseReleaseEvent = _mr
+        
+        dialog.move(
+            self.x() + (self.width() - dialog.width()) // 2,
+            self.y() + (self.height() - dialog.height()) // 2
+        )
+        
+        if dialog.exec_() == QDialog.Accepted:
+            self.bookmarks_data.clear()
+            self.save_bookmarks()
+            # Обновляем все видимые контролы
+            if hasattr(self, 'preview_key_to_group_widget'):
+                for k in list(self.preview_key_to_group_widget.keys()):
+                    self._refresh_bookmark_comment_preview(k)
+            # Обновляем все видимые звёздочки
+            for bm_key, bm_label in self.bookmark_labels_map.items():
+                bm_label.setText("☆")
+                bm_label.setStyleSheet("color: #666666; font-size: 14px; background: transparent; border: none; padding: 0px;")
+            # Сбрасываем фон всех строк
+            if hasattr(self, 'preview_key_to_group_widget'):
+                for idx, (gkey, widgets) in enumerate(self.preview_key_to_group_widget.items()):
+                    meta_w, orig_w, trans_w = widgets
+                    zebra_idx = getattr(meta_w, '_zebra_index', idx)
+                    bg = self.theme_bg_even if zebra_idx % 2 == 0 else self.theme_bg_odd
+                    style = f'''
+                        QWidget#preview_line_group {{
+                            background-color: {bg};
+                            border-bottom: 1px solid #333;
+                            border-radius: 0px;
+                        }}
+                    '''
+                    meta_w.setStyleSheet(style)
+                    if orig_w: orig_w.setStyleSheet(style)
+                    if trans_w: trans_w.setStyleSheet(style)
+
+    def _on_bookmark_enter(self, key, bookmark_label, event):
+        """Показывает тултип с комментарием при наведении на закладку"""
+        bm = self.bookmarks_data.get(key)
+        if bm and bm.get('comment', '').strip():
+            self.custom_tooltip.show_tooltip(bm['comment'], bookmark_label, side='bottom')
+        # Вызываем оригинальный обработчик
+        QLabel.enterEvent(bookmark_label, event)
+    
+    def _on_bookmark_leave(self, key, bookmark_label, event):
+        """Скрывает тултип при уходе курсора"""
+        self.custom_tooltip.hide()
+        QLabel.leaveEvent(bookmark_label, event)
+
+    # [PREVIEW_METHODS]
+    def clear_preview_widgets(self):
+        """Очищает все виджеты предпросмотра (оптимизировано)"""
+        # Отключаем обновления для ускорения очистки
+        if hasattr(self, 'preview_content'):
+            self.preview_content.setUpdatesEnabled(False)
+            
+        try:
+            # Сначала останавливаем таймеры, которые могут создавать новые виджеты
+            if hasattr(self, 'preview_batch_timer'):
+                self.preview_batch_timer.stop()
+            
+            # Очищаем три колонки
+            layouts = [
+                getattr(self, 'preview_meta_layout', None), 
+                getattr(self, 'preview_orig_layout', None),
+                getattr(self, 'preview_trans_layout', None)
+            ]
+            
+            for layout in layouts:
+                if not layout: continue
+                
+                # Удаляем растяжку в конце, если она есть
+                count = layout.count()
+                if count > 0:
+                    item = layout.itemAt(count - 1)
+                    if item and not item.widget() and not item.layout():
+                         layout.removeItem(item)
+
+                while layout.count():
+                    item = layout.takeAt(0)
+                    if item.widget():
+                        w = item.widget()
+                        try:
+                            # Логируем удаляемый виджет (полезно для диагностики рассинхронов)
+                            self._log_to_file(f"[PREVIEW_DELETE_WIDGET] name={getattr(w, 'objectName', lambda: None)()} key={getattr(w, 'key', None)} part={getattr(w, 'part_index', None)} index={getattr(w, 'index', None)}")
+                        except Exception:
+                            pass
+                        # Разрываем связи во избежание сюрпризов при удалении
+                        if hasattr(w, 'partner'): w.partner = None
+                        if hasattr(w, 'row_siblings'): w.row_siblings = None
+                        w.deleteLater()
+                    elif item.layout():
+                        self.clear_layout(item.layout())
+            # Логируем и очищаем маппинги (безопасно)
+            if hasattr(self, 'preview_key_to_group_widget') and self.preview_key_to_group_widget:
+                try:
+                    for key, val in list(self.preview_key_to_group_widget.items()):
+                        try:
+                            mw, ow, tw = val
+                            # подсчитываем количество дочерних редакторов в каждой колонке
+                            o_count = len(ow.findChildren(type(ow))) if hasattr(ow, 'findChildren') else None
+                            t_count = len(tw.findChildren(type(tw))) if hasattr(tw, 'findChildren') else None
+                        except Exception:
+                            o_count = t_count = None
+                        try:
+                            self._log_to_file(f"[PREVIEW_DELETE_GROUP] key={key} orig_count={o_count} trans_count={t_count}")
+                        except Exception:
+                            pass
+                except Exception:
+                    pass
+            for attr in ['preview_key_to_group_widget', 'warning_icons_map', 
+                         'audio_labels_map', 'quick_audio_buttons', 'bookmark_labels_map']:
+                if hasattr(self, attr):
+                    try:
+                        getattr(self, attr).clear()
+                    except Exception:
+                        setattr(self, attr, {})
+                else:
+                    setattr(self, attr, {})
+            
+            # Сбрасываем текущее выделение аудио при полной очистке виджетов
+            self.highlighted_audio_key = None
+
+        except Exception as e:
+            ErrorLogger.log_error("CLEAR_PREVIEW", f"Error clearing preview: {e}")
+        finally:
+            if hasattr(self, 'preview_content'):
+                # Сбрасываем заглушку при полной очистке (она не должна висеть на пустом месте)
+                if hasattr(self, 'preview_empty_label'):
+                    self.preview_empty_label.hide()
+                    self.preview_splitter.show()
+                
+                self.preview_content.setUpdatesEnabled(True)
+                self.preview_content.update()
+
+    def recursive_delete_widget(self, widget):
+        """Рекурсивно удаляет виджет и все его дочерние элементы"""
+        if hasattr(widget, 'layout'):
+            if widget.layout():
+                self.clear_layout(widget.layout())
+        widget.deleteLater()
+
+    def clear_layout(self, layout):
+        """Рекурсивно очищает layout и все его элементы"""
+        if layout is None:
+            return
+        
+        while layout.count():
+            item = layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+            elif item.layout():
+                self.clear_layout(item.layout())
+
+    def update_preview_theme_colors(self):
+        """Обновляет цвета темы в предпросмотре без перерисовки виджетов"""
+        if not hasattr(self, 'preview_meta_layout') or not self.preview_meta_layout:
+            return
+            
+        self.preview_content.setUpdatesEnabled(False)
+        try:
+            from widgets import PreviewTextEdit, ClickableLabel
+            # Итерируемся по всем строкам в превью (используем meta_layout как эталон количества)
+            for i in range(self.preview_meta_layout.count()):
+                item_meta = self.preview_meta_layout.itemAt(i)
+                item_orig = self.preview_orig_layout.itemAt(i)
+                item_trans = self.preview_trans_layout.itemAt(i)
+                
+                if not (item_meta and item_orig and item_trans):
+                    continue
+                    
+                w_meta = item_meta.widget()
+                w_orig = item_orig.widget()
+                w_trans = item_trans.widget()
+                
+                # Пропускаем, если это не виджет (например, stretch в конце)
+                if not (w_meta and w_orig and w_trans) or w_meta.objectName() != "preview_line_group":
+                    continue
+                    
+                # Рассчитываем новый цвет
+                current_key = getattr(w_meta, 'current_key', None)
+                is_bookmarked = current_key in self.bookmarks_data if current_key else False
+                
+                if is_bookmarked:
+                    _, _, bg_color = self._get_bookmark_visual(current_key)
+                else:
+                    bg_color = self.theme_bg_even if getattr(w_meta, '_zebra_index', i) % 2 == 0 else self.theme_bg_odd
+                
+                # Обновляем стили контейнеров
+                container_style = f'''
+                    QWidget#preview_line_group {{
+                        background-color: {bg_color};
+                        border-bottom: 1px solid #333;
+                        border-radius: 0px;
+                    }}
+                '''
+                w_meta.setStyleSheet(container_style)
+                w_orig.setStyleSheet(container_style)
+                w_trans.setStyleSheet(container_style)
+
+                # --- ОБНОВЛЕНИЕ ВНУТРЕННИХ ВИДЖЕТОВ ---
+                
+                # 1. Обновляем аудио-метки в мета-колонке
+                for audio_label in w_meta.findChildren(ClickableLabel):
+                    # Пытаемся найти ключ для этого лейбла
+                    label_key = getattr(audio_label, 'key', None)
+                    if not label_key:
+                         for k, v in getattr(self, 'audio_labels_map', {}).items():
+                             if v == audio_label:
+                                 label_key = k
+                                 break
+                    
+                    if label_key:
+                        audio_info = self.miz_resource_manager.get_audio_for_key(label_key)
+                        if audio_info:
+                            _, is_current_locale = audio_info
+                            is_audio_replaced = self.miz_resource_manager.is_audio_replaced(label_key)
+                            
+                            if is_audio_replaced:
+                                audio_color = getattr(self, 'theme_text_modified', '#ff6666')
+                            elif is_current_locale:
+                                audio_color = getattr(self, 'theme_text_saved', '#2ecc71')
+                            else:
+                                audio_color = '#cccccc'
+                                
+                            border_style = "border: 1px solid #ff9900; border-radius: 4px;" if label_key == self.active_audio_key else "border: 1px solid transparent;"
+                            audio_label.setStyleSheet(f'''
+                                QLabel {{
+                                    color: {audio_color};
+                                    font-size: 12px;
+                                    text-decoration: underline;
+                                    background-color: transparent;
+                                    {border_style}
+                                    padding: 2px;
+                                }}
+                                QLabel:hover {{
+                                    background-color: #3d4256;
+                                    border-radius: 2px;
+                                }}
+                            ''')
+
+                # 2. Обновляем текстовые редакторы в колонках оригинала и перевода
+                for container in (w_orig, w_trans):
+                    for edit in container.findChildren(PreviewTextEdit):
+                        if getattr(edit, 'is_reference', False):
+                            # Референс обычно всегда белый
+                            ref_style = "color: #ffffff; background-color: transparent; border: none; border-radius: 0px;"
+                            edit.setStyleSheet(ref_style)
+                            edit._original_style = ref_style
+                            
+                            # Синхронизируем текст референса с актуальными данными (после сохранения)
+                            ref_data = getattr(self, 'reference_data', {})
+                            ref_key = getattr(edit, 'key', None)
+                            ref_part = getattr(edit, 'part_index', 0)
+                            if ref_data and ref_key:
+                                # .miz файл: референс из reference_data
+                                ref_parts = ref_data.get(ref_key, [])
+                                if 0 <= ref_part < len(ref_parts):
+                                    new_text = ref_parts[ref_part]
+                                    if edit.toPlainText() != new_text:
+                                        edit.setPlainText(new_text)
+                                else:
+                                    # Часть удалена из DEFAULT — скрываем виджет
+                                    edit.setVisible(False)
+                            elif not ref_data and ref_key is not None:
+                                # .txt файл: референс — копия display_text.
+                                # Ищем по (key, part_index), а НЕ по индексу,
+                                # потому что индексы сдвигаются при удалении строк.
+                                found = False
+                                for line in self.original_lines:
+                                    if line.get('key') == ref_key and line.get('part_index', 0) == ref_part:
+                                        new_text = line.get('display_text', '')
+                                        if edit.toPlainText() != new_text:
+                                            edit.setPlainText(new_text)
+                                        found = True
+                                        break
+                                if not found:
+                                    # Строка удалена — скрываем виджет
+                                    edit.setVisible(False)
+                        else:
+                            # Перевод: используем тему
+                            idx = edit.index
+                            if 0 <= idx < len(self.original_lines):
+                                l_data = self.original_lines[idx]
+                                is_modified = False
+                                if 'original_translated_text' in l_data:
+                                    is_modified = l_data['translated_text'] != l_data['original_translated_text']
+                                
+                                text_color = self._get_translation_color(is_modified, l_data)
+                                new_style = f"color: {text_color}; background-color: transparent; border: none; border-radius: 0px;"
+                                
+                                # ВАЖНО: обновляем _original_style, чтобы он не сбрасывался на старый при leaveEvent
+                                edit._original_style = new_style
+                                
+                                # Если виджет сейчас не подсвечен (нет запущенного таймера или флага), применяем стиль
+                                # На практике проще применить всегда, так как highlight в CSS/StyleSheet перекрывается
+                                edit.setStyleSheet(new_style)
+
+        except Exception as e:
+            print(f"Error updating preview colors: {e}")
+        finally:
+            self.preview_content.setUpdatesEnabled(True)
+
+    def update_preview(self):
+        """Обновляет предварительный просмотр всех строк (версия с батчевой отрисовкой)"""
+        # Если установлен флаг подавления — не перерисовываем предпросмотр
+        if getattr(self, '_suppress_preview_update', False):
+            return
+        # If user is actively typing (pending edits) or a preview editor has focus, postpone rebuild
+        try:
+            from widgets import PreviewTextEdit
+            focused = QApplication.focusWidget()
+        except Exception:
+            PreviewTextEdit = None
+            focused = None
+
+        if getattr(self, 'pending_sync_edits', None):
+            # postpone to avoid destroying active editors while typing
+            self.schedule_preview_update(300)
+            return
+
+        if PreviewTextEdit and isinstance(focused, PreviewTextEdit):
+            # СОХРАНЯЕМ ФОКУС: запоминаем где был курсор перед обновлением
+            try:
+                cursor = focused.textCursor()
+                self.last_focused_preview_info = {
+                    'key': focused.key if hasattr(focused, 'key') else None,
+                    'part_index': focused.part_index if hasattr(focused, 'part_index') else (focused.index if hasattr(focused, 'index') else None),
+                    'position': cursor.position(),
+                    'anchor': cursor.anchor()
+                }
+            except Exception:
+                self.last_focused_preview_info = None
+            
+            # РАЗРЕШАЕМ: теперь мы не блокируем обновление полностью, 
+            # так как научились восстанавливать фокус.
+            pass
+
+        if self.is_preview_updating:
+            self.schedule_preview_update(300)
+            return
+            
+        self.is_preview_updating = True
+        try:
+            # Останавливаем предыдущую отрисовку (если таймер инициализирован)
+            if hasattr(self, 'preview_batch_timer'):
+                self.preview_batch_timer.stop()
+            self.preview_groups_queue = []
+            
+            # Очищаем предыдущий предпросмотр
+            self.clear_preview_widgets()
+            
+            if not self.original_lines:
+                self.preview_info.setText(get_translation(self.current_language, 'preview_info', count=0))
+                self.total_preview_groups = 0
+                self.rendered_preview_groups = 0
+                
+                # Показываем заглушку всегда, если список пуст
+                if hasattr(self, 'preview_empty_label'):
+                    self.preview_empty_label.setText(get_translation(self.current_language, 'preview_no_keys_match'))
+                    self.preview_splitter.hide()
+                    self.preview_empty_label.show()
+                    
+                if hasattr(self, 'preview_content'):
+                    self.preview_content.setUpdatesEnabled(True)
+                self.is_preview_updating = False
+                return
+            
+            # Если есть строки — прячем заглушку и показываем сплиттер
+            if hasattr(self, 'preview_empty_label'):
+                self.preview_empty_label.hide()
+                self.preview_splitter.show()
+
+            # Группировка строк по ключу
+            groups = []
+            editor_keys = set()
+            if self.original_lines:
+                current_group = [0]
+                editor_keys.add(self.original_lines[0]['key'])
+                for i in range(1, len(self.original_lines)):
+                    editor_keys.add(self.original_lines[i]['key'])
+                    if self.original_lines[i]['key'] == self.original_lines[i-1]['key']:
+                        current_group.append(i)
+                    else:
+                        groups.append(current_group)
+                        current_group = [i]
+                groups.append(current_group)
+
+            # 2a. Виртуальные группы: ключи из референса, которых НЕТ в редакторе
+            ref_data = getattr(self, 'reference_data', {})
+            miz_path = getattr(self, 'current_miz_path', '') or ''
+            is_cmp = miz_path.lower().endswith('.cmp') or (getattr(self, 'current_file_path', '') or '').lower().endswith('.cmp')
+            skip_empty_keys = getattr(self, 'filter_empty_keys', True)
+            if ref_data and not is_cmp:
+                for ref_key, ref_parts in ref_data.items():
+                    if ref_key not in editor_keys and ref_parts and self._should_translate_key(ref_key):
+                        # Если фильтр «пропускать пустые ключи» включён — пропускаем ключи,
+                        # у которых все части в референсе пустые (нечего переводить)
+                        if skip_empty_keys and all(not (p and p.strip()) for p in ref_parts):
+                            continue
+                        groups.append({'virtual': True, 'key': ref_key, 'ref_parts': ref_parts})
+
+            # 2b. Подготавливаем очередь
+            self.preview_groups_queue = groups
+            self.total_preview_groups = len(groups)
+            self.rendered_preview_groups = 0
+            self.audio_labels_map = {}
+            
+            # Обновляем информацию (прогресс: 0 из Х)
+            self.preview_info.setText(get_translation(self.current_language, 'preview_info_progress', 
+                                                       current=0, total=self.total_preview_groups))
+            
+            # Запускаем батчевую отрисовку (увеличили интервал до 20мс для меньшей нагрузки)
+            if hasattr(self, 'preview_batch_timer'):
+                self.preview_batch_timer.start(20)
+            
+        except Exception as e:
+            error_msg = f"Ошибка обновления предпросмотра: {str(e)}"
+            ErrorLogger.log_error("PREVIEW_ERROR", error_msg)
+            if hasattr(self, 'preview_info'):
+                self.preview_info.setText(f'Ошибка: {error_msg[:50]}...')
+        finally:
+            self.is_preview_updating = False
+
+    def sync_preview_incremental(self):
+        """Эффективное обновление: скрывает/показывает имеющиеся виджеты без пересоздания.
+        Используется для авто-обновлений (фильтров) во время ввода, чтобы избежать тормозов.
+        """
+        if not hasattr(self, 'preview_key_to_group_widget') or not self.preview_key_to_group_widget:
+            return
+
+        # Если список для отображения пуст
+        if not self.original_lines:
+            if hasattr(self, 'preview_empty_label'):
+                self.preview_empty_label.setText(get_translation(self.current_language, 'preview_no_keys_match'))
+                self.preview_splitter.hide()
+                self.preview_empty_label.show()
+            
+            # Отключаем обновления для скрытия старых виджетов
+            self.preview_content.setUpdatesEnabled(False)
+            try:
+                for key, (mw, ow, tw) in self.preview_key_to_group_widget.items():
+                    mw.setVisible(False)
+                    ow.setVisible(False)
+                    tw.setVisible(False)
+            finally:
+                self.preview_content.setUpdatesEnabled(True)
+            return
+
+        # Если строки есть — возвращаем сплиттер
+        if hasattr(self, 'preview_empty_label'):
+            self.preview_empty_label.hide()
+            self.preview_splitter.show()
+        
+        # Создаем маппинг (key, part_index) -> new_index для быстрого поиска
+        visible_map = {}
+        for i, line in enumerate(self.original_lines):
+            # В original_lines у нас есть полные данные строки
+            visible_map[(line['key'], line.get('part_index', 0))] = i
+            
+        # Отключаем обновления для ускорения
+        self.preview_content.setUpdatesEnabled(False)
+        try:
+            from widgets import PreviewTextEdit
+            # Проходим по всем группам (mw - meta, ow - orig, tw - trans)
+            for key, (mw, ow, tw) in self.preview_key_to_group_widget.items():
+                group_has_visible = False
+                
+                # Внутри каждой колонки группы (orig, trans)
+                # Нам нужно проверить все PreviewTextEdit
+                for col_w in (ow, tw):
+                    edits = col_w.findChildren(PreviewTextEdit)
+                    for edit in edits:
+                        # Референсные виджеты (DEFAULT) не скрываем —
+                        # они отображают данные другой локали и не зависят от фильтрации текущей.
+                        if getattr(edit, 'is_reference', False):
+                            group_has_visible = True
+                            continue
+                        
+                        # part_index мы добавили ранее в render_preview_batch
+                        match_key = (key, getattr(edit, 'part_index', 0))
+                        
+                        if match_key in visible_map:
+                            edit.setVisible(True)
+                            try:
+                                self._log_to_file(f"[PREVIEW_SHOW] key={key} part={getattr(edit, 'part_index', 0)} index={getattr(edit, 'index', None)}")
+                            except Exception:
+                                pass
+                            # Обновляем индекс для синхронизации, чтобы sync_pending_edits работал корректно
+                            edit.index = visible_map[match_key]
+                            group_has_visible = True
+                        else:
+                            edit.setVisible(False)
+                            try:
+                                self._log_to_file(f"[PREVIEW_HIDE] key={key} part={getattr(edit, 'part_index', 0)} reason=not_in_visible_map")
+                            except Exception:
+                                pass
+                
+                # Если в ключе не осталось ни одной видимой строки - скрываем всю группу
+                # (метаданные и контейнеры колонок)
+                mw.setVisible(group_has_visible)
+                ow.setVisible(group_has_visible)
+                tw.setVisible(group_has_visible)
+                try:
+                    self._log_to_file(f"[PREVIEW_GROUP_VIS] key={key} visible={group_has_visible}")
+                except Exception:
+                    pass
+                
+            # Обновляем счетчик
+            unique_blocks = len(set(line['key'] for line in self.original_lines)) if self.original_lines else 0
+            self.preview_info.setText(get_translation(self.current_language, 'preview_info', count=unique_blocks))
+            
+        except Exception as e:
+            print(f"Error in sync_preview_incremental: {e}")
+            # В случае ошибки fallback на полную перерисовку
+            self.update_preview()
+        finally:
+            self.preview_content.setUpdatesEnabled(True)
+
+    def render_preview_until_index(self, target_index):
+        """Синхронно отрисовывает группы предпросмотра из очереди до указанного индекса.
+        Используется для мгновенного перехода к результату поиска, который еще не отрендерен.
+        """
+        if not hasattr(self, 'preview_groups_queue') or not self.preview_groups_queue:
+            return
+            
+        # Отключаем обновления
+        self.preview_content.setUpdatesEnabled(False)
+        try:
+            while self.preview_groups_queue:
+                # Проверяем, есть ли target_index в следующей группе
+                next_group = self.preview_groups_queue[0]
+                self.render_preview_batch() # Отрисовываем одну пачку (10 групп)
+                
+                # Если мы уже прошли нужный индекс или он был в этой пачке — выходим
+                # (render_preview_batch удаляет отрендеренные группы из очереди)
+                if any(idx >= target_index for idx in next_group):
+                    break
+                
+                # Защита от бесконечного цикла
+                if not self.preview_groups_queue:
+                    break
+        finally:
+            self.preview_content.setUpdatesEnabled(True)
+
+    def render_preview_batch(self):
+        """Отрисовывает одну пачку групп в предпросмотре для плавности"""
+        if not self.preview_groups_queue or not self.original_lines:
+            self.preview_batch_timer.stop()
+            self.preview_layout.addStretch()
+            self.last_focused_preview_info = None  # Сбрасываем, если так и не нашли
+            # Финальная надпись (уже без "из")
+            self.preview_info.setText(get_translation(self.current_language, 'preview_info', count=self.total_preview_groups))
+            self.sync_preview_header_widths()
+            return
+            
+        # Пачка по 10 групп за раз (было 15, уменьшили для плавности)
+        batch_size = 10
+        batch = self.preview_groups_queue[:batch_size]
+        self.preview_groups_queue = self.preview_groups_queue[batch_size:]
+        self.rendered_preview_groups += len(batch)
+        
+        # Обновляем прогресс в той же строке
+        self.preview_info.setText(get_translation(self.current_language, 'preview_info_progress', 
+                                                   current=self.rendered_preview_groups, total=self.total_preview_groups))
+        
+        # Отключаем обновления на время массового добавления
+        self.preview_content.setUpdatesEnabled(False)
+        try:
+            for group_indices in batch:
+                # --- ВИРТУАЛЬНАЯ ГРУППА (ключ есть в референсе, но НЕТ в переводе) ---
+                if isinstance(group_indices, dict) and group_indices.get('virtual'):
+                    self._render_virtual_preview_group(group_indices)
+                    continue
+                    
+                if not group_indices: continue
+                first_idx = group_indices[0]
+                
+                # ПРОВЕРКА ГРАНИЦ (Защита от IndexError при быстрой смене файлов)
+                if first_idx >= len(self.original_lines):
+                    continue
+                    
+                line_data = self.original_lines[first_idx]
+                current_key = line_data['key']
+
+                # part_index уже сохранён в line_data при парсинге — НЕ перезаписываем
+                
+                # Рассчитываем цвет зебры: чередуем по чётности
+                current_count = self.preview_meta_layout.count()
+                bg_color = self.theme_bg_even if current_count % 2 == 0 else self.theme_bg_odd
+                
+                # Создаём три строки (по одной для каждой колонки)
+                is_bookmarked = current_key in self.bookmarks_data
+                if is_bookmarked:
+                    _, _, meta_bg = self._get_bookmark_visual(current_key)
+                else:
+                    meta_bg = bg_color
+                
+                meta_row_widget = QWidget()
+                meta_row_widget.setObjectName("preview_line_group")
+                meta_row_widget.current_key = current_key  # СОХРАНЯЕМ КЛЮЧ
+                meta_row_widget._zebra_index = current_count  # Для восстановления цвета зебры
+                meta_row_widget.setStyleSheet(f'''
+                    QWidget#preview_line_group {{
+                        background-color: {meta_bg};
+                        border-bottom: 1px solid #333;
+                        border-radius: 0px;
+                    }}
+                ''')
+                meta_row_layout = QVBoxLayout(meta_row_widget)
+                meta_row_layout.setContentsMargins(4, 0, 4, 0)
+                meta_row_layout.setSpacing(0)
+                
+                # --- Закладка (значок) + Номер + Ключ ---
+                bookmark_header_layout = QHBoxLayout()
+                bookmark_header_layout.setContentsMargins(0, 0, 0, 0)
+                bookmark_header_layout.setSpacing(4)
+                
+                star_text, star_color, _ = self._get_bookmark_visual(current_key)
+                star_style = f"color: {star_color}; font-size: 14px; background: transparent; border: none; padding: 0px;"
+                if is_bookmarked:
+                    star_style = f"color: {star_color}; font-size: 14px; font-weight: bold; background: transparent; border: none; padding: 0px;"
+                bookmark_label = QLabel(star_text)
+                bookmark_label.setStyleSheet(star_style)
+                bookmark_label.setCursor(Qt.PointingHandCursor)
+                bookmark_label.setFixedWidth(16)
+                # ЛКМ = toggle звезды, ПКМ = контекстное меню
+                def _bm_mouse_press(e, k=current_key, bl=bookmark_label, mw=meta_row_widget):
+                    if e.button() == Qt.LeftButton:
+                        # Сохраняем состояние ДО переключения для логики двойного клика
+                        mw._prev_bm_type = self.bookmarks_data.get(k, {}).get('type') if k in self.bookmarks_data else None
+                        self.toggle_bookmark(k, bl, mw)
+                    elif e.button() == Qt.RightButton:
+                        self.show_bookmark_context_menu(k, bl, mw, e.globalPos())
+                
+                def _bm_double_click(e, k=current_key, bl=bookmark_label, mw=meta_row_widget):
+                    if e.button() == Qt.LeftButton:
+                        self.cycle_bookmark_type(k, bl, mw)
+                
+                bookmark_label.mousePressEvent = _bm_mouse_press
+                bookmark_label.mouseDoubleClickEvent = _bm_double_click
+                # Тултип с комментарием при наведении
+                bookmark_label.enterEvent = lambda e, k=current_key, bl=bookmark_label: self._on_bookmark_enter(k, bl, e)
+                bookmark_label.leaveEvent = lambda e, k=current_key, bl=bookmark_label: self._on_bookmark_leave(k, bl, e)
+                self.bookmark_labels_map[current_key] = bookmark_label
+                
+                idx_label = f"#{first_idx+1}" if len(group_indices) == 1 else f"#{first_idx+1}-{group_indices[-1]+1}"
+                header_line = QLabel(f"<span style='color: #cccccc; font-weight: bold;'>{idx_label}</span> <span style='color: #8f8f8f; font-size: 12px;'>{current_key}</span>")
+                header_line.setStyleSheet('border: none; background: transparent;')
+                header_line.setWordWrap(True)
+                
+                bookmark_header_layout.addWidget(header_line, 1, Qt.AlignTop)
+                bookmark_header_layout.addWidget(bookmark_label, 0, Qt.AlignTop | Qt.AlignRight)
+                
+                meta_row_layout.addLayout(bookmark_header_layout)
+
+                orig_row_widget = QWidget()
+                orig_row_widget.setObjectName("preview_line_group")
+                orig_row_widget.setStyleSheet(f'''
+                    QWidget#preview_line_group {{
+                        background-color: {meta_bg};
+                        border-bottom: 1px solid #333;
+                        border-radius: 0px;
+                    }}
+                ''')
+                orig_row_layout = QVBoxLayout(orig_row_widget)
+                orig_row_layout.setContentsMargins(4, 0, 4, 0)
+                orig_row_layout.setSpacing(0)
+
+                trans_row_widget = QWidget()
+                trans_row_widget.setObjectName("preview_line_group")
+                trans_row_widget.setStyleSheet(f'''
+                    QWidget#preview_line_group {{
+                        background-color: {meta_bg};
+                        border-bottom: 1px solid #333;
+                        border-radius: 0px;
+                    }}
+                ''')
+                trans_row_layout = QVBoxLayout(trans_row_widget)
+                trans_row_layout.setContentsMargins(4, 0, 4, 0)
+                trans_row_layout.setSpacing(0)
+
+                # Регистрируем группу для селективного апдейта по ключу (три компонента)
+                try:
+                    self.preview_key_to_group_widget[current_key] = (meta_row_widget, orig_row_widget, trans_row_widget)
+                except Exception:
+                    self.preview_key_to_group_widget = {current_key: (meta_row_widget, orig_row_widget, trans_row_widget)}
+                
+                # Инициализируем пустую карту для превью комментариев, если нет
+                if not hasattr(self, 'comment_previews_map'):
+                    self.comment_previews_map = {}
+                
+                try:
+                    self._log_to_file(f"[PREVIEW_CREATE_GROUP] key={current_key} first_idx={first_idx} parts={len(group_indices)} current_count={current_count}")
+                except Exception:
+                    pass
+                
+                # Подсветка при наведении только для аудио меток, для строк убрана
+                
+                audio_info = self.miz_resource_manager.get_audio_for_key(current_key)
+                bookmark_info = self.bookmarks_data.get(current_key)
+                has_comment = bookmark_info and bookmark_info.get('comment')
+                
+                if audio_info or bookmark_info:
+                    # Контейнер для доп. контролов (Аудио, Комментарии)
+                    extras_layout = QHBoxLayout()
+                    extras_layout.setContentsMargins(0, 0, 0, 0)
+                    extras_layout.setSpacing(8) # Оптимизированный спейсинг
+                    meta_row_widget.extras_layout = extras_layout
+                    
+                    if audio_info:
+                        audio_filename, is_current_locale = audio_info
+                        audio_color = '#00cc66' if self.miz_resource_manager.is_audio_replaced(current_key) else ('#ff9900' if is_current_locale else '#888888')
+                        audio_label = ClickableLabel(audio_filename)
+                        audio_label.key = current_key
+                        audio_label.clicked.connect(lambda k=current_key: self.open_audio_player(k, auto_play=False))
+                        audio_label.rightClicked.connect(lambda pos, k=current_key: self._on_audio_label_context_menu(pos, k))
+                        audio_label.fileDropped.connect(lambda path, k=current_key: self.handle_audio_replacement(k, path))
+                        if current_key not in self.audio_labels_map:
+                            self.audio_labels_map[current_key] = []
+                        self.audio_labels_map[current_key].append(audio_label)
+                        
+                        # ЦВЕТ АУДИО
+                        is_audio_replaced = self.miz_resource_manager.is_audio_replaced(current_key)
+                        if is_audio_replaced:
+                             audio_color = getattr(self, 'theme_text_modified', '#ff6666')
+                        elif is_current_locale:
+                             audio_color = getattr(self, 'theme_text_saved', '#2ecc71')
+                        else:
+                             audio_color = '#cccccc'
+
+                        border_style = "border: 1px solid #ff9900; border-radius: 4px;" if current_key == self.active_audio_key else "border: 1px solid transparent;"
+                        audio_label.setStyleSheet(f'''
+                            QLabel {{
+                                color: {audio_color};
+                                font-size: 12px;
+                                text-decoration: underline;
+                                background-color: transparent;
+                                {border_style}
+                                padding: 2px;
+                            }}
+                            QLabel:hover {{
+                                background-color: #3d4256;
+                                border-radius: 2px;
+                            }}
+                        ''')
+                        audio_label.setWordWrap(True)
+                        meta_row_layout.addWidget(audio_label, 0, Qt.AlignTop)
+                        
+                        # Мини-кнопки управления (Play/Stop)
+                        play_btn = QPushButton("▶")
+                        play_btn.setFixedSize(self.preview_btn_size, self.preview_btn_size)
+                        play_btn.setCursor(Qt.PointingHandCursor)
+                        play_btn.setFocusPolicy(Qt.NoFocus)
+                        play_btn.setStyleSheet(self.preview_btn_base.format(size=self.preview_play_font, w=self.preview_btn_size, top=self.preview_play_top_offset))
+                        play_btn.clicked.connect(lambda _, k=current_key, b=play_btn: self.quick_toggle_audio(k, b))
+
+                        stop_btn = QPushButton("■")
+                        stop_btn.setFixedSize(self.preview_btn_size, self.preview_btn_size)
+                        stop_btn.setCursor(Qt.PointingHandCursor)
+                        stop_btn.setFocusPolicy(Qt.NoFocus)
+                        stop_btn.setStyleSheet(self.preview_btn_base.format(size=self.preview_stop_font, w=self.preview_btn_size, top=self.preview_stop_top_offset))
+                        stop_btn.clicked.connect(self.stop_quick_audio)
+                        
+                        extras_layout.addWidget(play_btn)
+                        extras_layout.addWidget(stop_btn)
+                        
+                        # Значок ВНИМАНИЯ
+                        if not is_current_locale:
+                            warning_icon = QLabel("⚠")
+                            warning_icon.setStyleSheet("color: #ffcc00; background-color: transparent; font-size: 16px; margin-left: 1px;")
+                            warning_icon.setCursor(Qt.PointingHandCursor)
+                            extras_layout.addWidget(warning_icon)
+                            self.register_custom_tooltip(warning_icon, get_translation(self.current_language, 'file_from_default'), side='top')
+                            if not hasattr(self, 'warning_icons_map'):
+                                self.warning_icons_map = {}
+                            self.warning_icons_map[current_key] = warning_icon
+                        
+                        try:
+                            self.quick_audio_buttons[current_key] = play_btn
+                            if self.quick_playing_key == current_key:
+                                if self.quick_paused: play_btn.setText("▶")
+                                else: play_btn.setText("\u23F8\uFE0E")
+                        except Exception: pass
+                    
+                    # ПРЕДПРОСМОТР КОММЕНТАРИЯ
+                    if has_comment:
+                        comment_text = bookmark_info.get('comment', '')
+                        short_comment = comment_text.split('\n')[0].strip()
+                        if len(short_comment) > 40: short_comment = short_comment[:40] + "..."
+                        
+                        if short_comment:
+                            comment_preview = QLabel(short_comment)
+                            comment_preview.setStyleSheet("""
+                                QLabel {
+                                    color: #ffffff;
+                                    background-color: rgba(50, 50, 50, 245);
+                                    border: 1px solid #ff9900;
+                                    border-radius: 4px;
+                                    padding: 1px 6px;
+                                    font-size: 11px;
+                                }
+                            """)
+                            comment_preview.setMaximumWidth(150) # Ограничиваем ширину чтобы не вытеснял остальное
+                            extras_layout.addWidget(comment_preview, 0, Qt.AlignVCenter)
+                            self.register_custom_tooltip(comment_preview, comment_text, side='top')
+                            meta_row_widget.comment_label = comment_preview
+                    
+                    extras_layout.addStretch()
+                    meta_row_layout.addLayout(extras_layout)
+                
+                # --- 1. Отрисовка референса (Колонка 2) ---
+                # Теперь она "развязана" от отфильтрованных индексов перевода.
+                # Мы отрисовываем ВСЕ строки референса, которые есть в данных для этого ключа.
+                
+                miz_path = getattr(self, 'current_miz_path', '') or ''
+                file_path = getattr(self, 'current_file_path', '') or ''
+                is_cmp = miz_path.lower().endswith('.cmp') or file_path.lower().endswith('.cmp')
+                ref_locale = self.reference_locale
+                
+                ref_parts = []
+                if not is_cmp and getattr(self, 'current_miz_path', None) and getattr(self, 'reference_data', None):
+                    ref_parts = self.reference_data.get(current_key, [])
+                elif is_cmp:
+                    # Для .cmp используем замороженные данные (cmp_reference_data)
+                    base_key = current_key
+                    k_parts = current_key.rsplit('_', 1)
+                    if len(k_parts) > 1 and k_parts[1].isupper() and len(k_parts[1]) == 2:
+                        base_key = k_parts[0]
+                    target_ref_key = base_key if ref_locale == "DEFAULT" else f"{base_key}_{ref_locale}"
+                    frozen = getattr(self, 'cmp_reference_data', {})
+                    ref_parts = frozen.get(target_ref_key, [])
+                    if not ref_parts and ref_locale != "DEFAULT":
+                        ref_parts = frozen.get(base_key, [])
+                
+                # Если референс есть — выводим его ВЕСЬ (симметрия к полному ключу)
+                # НО: если это "пустой аудио-ключ" (hide_input), референс тоже не выводим для чистоты
+                has_any_line_with_input = any(not self.original_lines[idx].get('hide_input') for idx in group_indices)
+                
+                if ref_parts and has_any_line_with_input:
+                    for p_idx, ref_text in enumerate(ref_parts):
+                        orig_edit = PreviewTextEdit(-1, ref_text, read_only=True, parent=self)
+                        orig_edit.is_reference = True
+                        orig_edit.key = current_key
+                        orig_edit.part_index = p_idx
+                        orig_edit.setStyleSheet("color: #ffffff; background-color: transparent; border: none; border-radius: 0px;")
+                        orig_edit._original_style = "color: #ffffff; background-color: transparent; border: none; border-radius: 0px;"
+                        orig_row_layout.addWidget(orig_edit, 0, Qt.AlignTop)
+                elif not has_any_line_with_input:
+                    # Пустой аудио-ключ: ничего не добавляем в референс
+                    pass
+                else:
+                    # Fallback: если референса нет
+                    if getattr(self, 'is_dictionary_mode', False):
+                        warn_marker = ""
+                        warn_style = "color: #ffffff; background-color: transparent; border: none; border-radius: 0px;"
+                    else:
+                        warn_marker = get_translation(self.current_language, 'no_reference_marker')
+                        warn_style = "color: #ff6666; background-color: rgba(255, 0, 0, 30); border: none; border-radius: 0px;"
+                    
+                    for idx in group_indices:
+                        if self.original_lines[idx].get('hide_input'): continue
+                        ref_text = self.original_lines[idx].get('display_text', '')
+                        # Добавляем маркер перед текстом
+                        display_text = warn_marker + ref_text
+                        
+                        orig_edit = PreviewTextEdit(idx, display_text, read_only=True, parent=self)
+                        orig_edit.is_reference = True
+                        orig_edit.key = current_key
+                        orig_edit.part_index = self.original_lines[idx].get('part_index', 0)
+                        
+                        # Устанавливаем стиль
+                        orig_edit.setStyleSheet(warn_style)
+                        orig_edit._original_style = warn_style
+                        
+                        orig_row_layout.addWidget(orig_edit, 0, Qt.AlignTop)
+
+                # --- 2. Отрисовка перевода (Колонка 3) ---
+                # Подчиняется фильтрам (group_indices может быть подмножеством всех строк ключа)
+                for idx_in_group, idx in enumerate(group_indices):
+                    l_data = self.original_lines[idx]
+                    if l_data.get('hide_input'):
+                        continue # Пропускаем создание поля ввода
+                        
+                    original_part_idx = l_data.get('part_index', 0)
+                    
+                    t_text = l_data['translated_text'] if l_data['translated_text'] else ""
+                    is_modified = False
+                    if 'original_translated_text' in l_data:
+                        is_modified = t_text != l_data['original_translated_text']
+
+                    trans_edit = PreviewTextEdit(idx, t_text, read_only=False, parent=self)
+                    trans_edit.is_reference = False
+                    trans_edit.key = current_key
+                    trans_edit.part_index = original_part_idx
+                    is_mission_name = current_key.startswith('DictKey_sortie_') or current_key == 'name' or current_key.startswith('name_')
+                    trans_edit.single_line = is_mission_name
+                    
+                    text_color = self._get_translation_color(is_modified, l_data)
+                    original_style = f"color: {text_color}; background-color: transparent; border: none; border-radius: 0px;"
+                    trans_edit.setStyleSheet(original_style)
+                    trans_edit._original_style = original_style
+
+                    # ВОССТАНОВЛЕНИЕ ФОКУСА
+                    if self.last_focused_preview_info:
+                        info = self.last_focused_preview_info
+                        # Для PreviewTextEdit 'index' обычно соответствует 'part_index' внутри группы или глобальному индексу
+                        # Но надежнее всего проверять по ключу (если есть) и индексу части
+                        is_match = False
+                        if info['key'] == current_key:
+                            # Проверяем совпадение индекса
+                            if info['part_index'] == idx:
+                                is_match = True
+                        
+                        if is_match:
+                            try:
+                                trans_edit.setFocus()
+                                cursor = trans_edit.textCursor()
+                                cursor.setPosition(info['anchor'])
+                                cursor.setPosition(info['position'], QTextCursor.KeepAnchor)
+                                trans_edit.setTextCursor(cursor)
+                                # Сбрасываем, чтобы не фокусировать повторно при батчевой отрисовке других групп
+                                self.last_focused_preview_info = None
+                            except Exception:
+                                pass
+                    # Исправлено: лямбда теперь использует динамический te.index и данные из оригинального списка.
+                    # Это предотвращает перезапись чужих строк при вставке новых через Enter.
+                    trans_edit.text_changed.connect(
+                        lambda *args, te=trans_edit: 
+                        self.on_preview_text_modified(te, te.index, self.original_lines[te.index])
+                    )
+                    # Подключаем вставку новой строки через Enter
+                    trans_edit.line_inserted.connect(
+                        lambda ins_idx, move_text, te=trans_edit,
+                               orl=orig_row_layout, trl=trans_row_layout,
+                               mw=meta_row_widget, orw=orig_row_widget, trw=trans_row_widget:
+                        self.on_preview_line_inserted(ins_idx, move_text, te, orl, trl, mw, orw, trw)
+                    )
+                    # Подключаем удаление/слияние строки через Backspace
+                    trans_edit.line_deleted.connect(lambda del_idx, merge_text, te=trans_edit: self.on_preview_line_deleted(del_idx, te, merge_text))
+                    
+                    
+                    trans_row_layout.addWidget(trans_edit, 0, Qt.AlignTop)
+                
+                
+                # Подключаем row_siblings на каждый PreviewTextEdit для трёхсторонней синхронизации
+                siblings_tuple = (meta_row_widget, orig_row_widget, trans_row_widget)
+                for sub in (orig_row_widget, trans_row_widget):
+                    for edit in sub.findChildren(PreviewTextEdit):
+                        edit.row_siblings = siblings_tuple
+                
+                # Активируем layout'ы
+                meta_row_widget.layout().activate()
+                orig_row_widget.layout().activate()
+                trans_row_widget.layout().activate()
+                
+                # Синхронизируем высоту всей группы (особенно важно для пустых аудио-ключей)
+                max_h = max(meta_row_widget.sizeHint().height(), 
+                            orig_row_widget.sizeHint().height(), 
+                            trans_row_widget.sizeHint().height(), 24)
+                meta_row_widget.setFixedHeight(max_h)
+                orig_row_widget.setFixedHeight(max_h)
+                trans_row_widget.setFixedHeight(max_h)
+                
+                # Добавляем растяжку в концы layout-ов, чтобы прижать всё содержимое к ВЕРХУ
+                meta_row_layout.addStretch(1)
+                orig_row_layout.addStretch(1)
+                trans_row_layout.addStretch(1)
+
+                # Добавляем три row-виджета в их соответствующие колонки
+                self.preview_meta_layout.addWidget(meta_row_widget)
+                self.preview_orig_layout.addWidget(orig_row_widget)
+                self.preview_trans_layout.addWidget(trans_row_widget)
+        finally:
+            self.preview_content.setUpdatesEnabled(True)
+
+    def _render_virtual_preview_group(self, vgroup):
+        """Отрисовывает виртуальную группу — ключ есть в референсе, но НЕТ в переводе."""
+        from widgets import PreviewTextEdit
+        
+        current_key = vgroup['key']
+        ref_parts = vgroup['ref_parts']
+        
+        current_count = self.preview_meta_layout.count()
+        # Рассчитываем цвет зебры: чередуем по чётности
+        is_bookmarked = current_key in self.bookmarks_data
+        if is_bookmarked:
+            _, _, bg_color = self._get_bookmark_visual(current_key)
+        else:
+            bg_color = self.theme_bg_even if current_count % 2 == 0 else self.theme_bg_odd
+        
+        container_style = f'''
+            QWidget#preview_line_group {{
+                background-color: {bg_color};
+                border-bottom: 1px solid #333;
+                border-radius: 0px;
+            }}
+        '''
+        
+        # --- Мета-колонка ---
+        meta_row_widget = QWidget()
+        meta_row_widget.setObjectName("preview_line_group")
+        meta_row_widget.current_key = current_key  # СОХРАНЯЕМ КЛЮЧ
+        meta_row_widget._zebra_index = current_count
+        meta_row_widget.setStyleSheet(container_style)
+        meta_row_layout = QVBoxLayout(meta_row_widget)
+        meta_row_layout.setContentsMargins(4, 1, 4, 1)
+        meta_row_layout.setSpacing(2)
+        
+        header_line = QLabel(f"<span style='color: #888888; font-weight: bold;'>•</span> <span style='color: #8f8f8f; font-size: 12px;'>{current_key}</span>")
+        header_line.setStyleSheet('border: none; background: transparent;')
+        header_line.setWordWrap(True)
+        meta_row_layout.addWidget(header_line, 0, Qt.AlignTop)
+        
+        # Доп. контролы (Аудио, Комментарии)
+        audio_info = self.miz_resource_manager.get_audio_for_key(current_key)
+        bookmark_info = self.bookmarks_data.get(current_key)
+        has_comment = bookmark_info and bookmark_info.get('comment')
+        
+        if audio_info or bookmark_info:
+            # Контейнер для доп. контролов (Аудио, Комментарии)
+            extras_layout = QHBoxLayout()
+            extras_layout.setContentsMargins(0, 0, 0, 0)
+            extras_layout.setSpacing(8) # Оптимизированный спейсинг
+            meta_row_widget.extras_layout = extras_layout
+            
+            if audio_info:
+                audio_filename, is_current_locale = audio_info
+                audio_color = '#00cc66' if self.miz_resource_manager.is_audio_replaced(current_key) else ('#ff9900' if is_current_locale else '#888888')
+                audio_label = ClickableLabel(audio_filename)
+                audio_label.key = current_key
+                audio_label.clicked.connect(lambda k=current_key: self.open_audio_player(k, auto_play=False))
+                audio_label.rightClicked.connect(lambda pos, k=current_key: self._on_audio_label_context_menu(pos, k))
+                audio_label.fileDropped.connect(lambda path, k=current_key: self.handle_audio_replacement(k, path))
+                if current_key not in self.audio_labels_map:
+                    self.audio_labels_map[current_key] = []
+                self.audio_labels_map[current_key].append(audio_label)
+                
+                # ЦВЕТ АУДИО
+                is_audio_replaced = self.miz_resource_manager.is_audio_replaced(current_key)
+                if is_audio_replaced:
+                     audio_color = getattr(self, 'theme_text_modified', '#ff6666')
+                elif is_current_locale:
+                     audio_color = getattr(self, 'theme_text_saved', '#2ecc71')
+                else:
+                     audio_color = '#cccccc'
+
+                border_style = "border: 1px solid #ff9900; border-radius: 4px;" if current_key == self.active_audio_key else "border: 1px solid transparent;"
+                audio_label.setStyleSheet(f'''
+                    QLabel {{
+                        color: {audio_color};
+                        font-size: 12px;
+                        text-decoration: underline;
+                        background-color: transparent;
+                        {border_style}
+                        padding: 2px;
+                    }}
+                    QLabel:hover {{
+                        background-color: #3d4256;
+                        border-radius: 2px;
+                    }}
+                ''')
+                audio_label.setWordWrap(True)
+                meta_row_layout.addWidget(audio_label, 0, Qt.AlignTop)
+                
+                # Кнопки Play/Stop
+                play_btn = QPushButton("▶")
+                play_btn.setFixedSize(self.preview_btn_size, self.preview_btn_size)
+                play_btn.setCursor(Qt.PointingHandCursor)
+                play_btn.setFocusPolicy(Qt.NoFocus)
+                play_btn.setStyleSheet(self.preview_btn_base.format(size=self.preview_play_font, w=self.preview_btn_size, top=self.preview_play_top_offset))
+                play_btn.clicked.connect(lambda _, k=current_key, b=play_btn: self.quick_toggle_audio(k, b))
+
+                stop_btn = QPushButton("■")
+                stop_btn.setFixedSize(self.preview_btn_size, self.preview_btn_size)
+                stop_btn.setCursor(Qt.PointingHandCursor)
+                stop_btn.setFocusPolicy(Qt.NoFocus)
+                stop_btn.setStyleSheet(self.preview_btn_base.format(size=self.preview_stop_font, w=self.preview_btn_size, top=self.preview_stop_top_offset))
+                stop_btn.clicked.connect(self.stop_quick_audio)
+                
+                extras_layout.addWidget(play_btn)
+                extras_layout.addWidget(stop_btn)
+                
+                # Значок ВНИМАНИЯ
+                if not is_current_locale:
+                    warning_icon = QLabel("⚠")
+                    warning_icon.setStyleSheet("color: #ffcc00; background-color: transparent; font-size: 16px; margin-left: 1px;")
+                    warning_icon.setCursor(Qt.PointingHandCursor)
+                    extras_layout.addWidget(warning_icon)
+                    self.register_custom_tooltip(warning_icon, get_translation(self.current_language, 'file_from_default'), side='top')
+                    if not hasattr(self, 'warning_icons_map'):
+                        self.warning_icons_map = {}
+                    self.warning_icons_map[current_key] = warning_icon
+
+                try:
+                    self.quick_audio_buttons[current_key] = play_btn
+                    if self.quick_playing_key == current_key:
+                        if self.quick_paused: play_btn.setText("▶")
+                        else: play_btn.setText("\u23F8\uFE0E")
+                except Exception: pass
+
+            # ПРЕДПРОСМОТР КОММЕНТАРИЯ
+            if has_comment:
+                comment_text = bookmark_info.get('comment', '')
+                short_comment = comment_text.split('\n')[0].strip()
+                if len(short_comment) > 40: short_comment = short_comment[:40] + "..."
+                
+                if short_comment:
+                    comment_preview = QLabel(short_comment)
+                    comment_preview.setStyleSheet("""
+                        QLabel {
+                            color: #ffffff;
+                            background-color: rgba(50, 50, 50, 245);
+                            border: 1px solid #ff9900;
+                            border-radius: 4px;
+                            padding: 1px 6px;
+                            font-size: 11px;
+                        }
+                    """)
+                    comment_preview.setMaximumWidth(150)
+                    extras_layout.addWidget(comment_preview, 0, Qt.AlignVCenter)
+                    self.register_custom_tooltip(comment_preview, comment_text, side='top')
+                    meta_row_widget.comment_label = comment_preview
+
+            extras_layout.addStretch()
+            meta_row_layout.addLayout(extras_layout)
+        
+        # --- Референс-колонка ---
+        orig_row_widget = QWidget()
+        orig_row_widget.setObjectName("preview_line_group")
+        orig_row_widget.setStyleSheet(container_style)
+        orig_row_layout = QVBoxLayout(orig_row_widget)
+        orig_row_layout.setContentsMargins(4, 1, 4, 1)
+        orig_row_layout.setSpacing(0)
+        
+        for p_idx, ref_text in enumerate(ref_parts):
+            orig_edit = PreviewTextEdit(-1, ref_text, read_only=True, parent=self)
+            orig_edit.is_reference = True
+            orig_edit.key = current_key
+            orig_edit.part_index = p_idx
+            orig_edit.setStyleSheet("color: #ffffff; background-color: transparent; border: none; border-radius: 0px;")
+            orig_edit._original_style = "color: #ffffff; background-color: transparent; border: none; border-radius: 0px;"
+            orig_row_layout.addWidget(orig_edit, 0, Qt.AlignTop)
+        
+        # --- Перевод-колонка (виртуальная — placeholder) ---
+        trans_row_widget = QWidget()
+        trans_row_widget.setObjectName("preview_line_group")
+        trans_row_widget.setStyleSheet(container_style)
+        trans_row_layout = QVBoxLayout(trans_row_widget)
+        trans_row_layout.setContentsMargins(4, 1, 4, 1)
+        trans_row_layout.setSpacing(0)
+        
+        warn_marker = get_translation(self.current_language, 'no_translation_marker')
+        warn_style = "color: #999999; background-color: rgba(255, 165, 0, 20); border: none; border-radius: 0px;"
+        
+        for p_idx, ref_text in enumerate(ref_parts):
+            # Показываем маркер как реальный текст (placeholder невидим на тёмном фоне)
+            marker_text = warn_marker if p_idx == 0 else ""
+            trans_edit = PreviewTextEdit(-1, marker_text, read_only=False, parent=self)
+            trans_edit.is_reference = False
+            trans_edit.key = current_key
+            trans_edit.part_index = p_idx
+            is_mission_name = current_key.startswith('DictKey_sortie_') or current_key == 'name' or current_key.startswith('name_')
+            trans_edit.single_line = is_mission_name
+            trans_edit._is_virtual = True
+            trans_edit._virtual_key = current_key
+            trans_edit._virtual_part_index = p_idx
+            trans_edit._virtual_total_parts = len(ref_parts)
+            trans_edit._virtual_marker = marker_text  # Запоминаем маркер для очистки при фокусе
+            trans_edit.setStyleSheet(warn_style)
+            trans_edit._original_style = warn_style
+            
+            # При первом вводе текста — лениво инжектируем ключ в данные
+            trans_edit.text_changed.connect(
+                lambda *args, te=trans_edit: self.on_virtual_text_modified(te)
+            )
+            
+            orig_edit_for_partner = orig_row_layout.itemAt(p_idx)
+            if orig_edit_for_partner and orig_edit_for_partner.widget():
+                orig_edit_for_partner.widget().set_partner(trans_edit)
+                trans_edit.set_partner(orig_edit_for_partner.widget())
+            
+            trans_row_layout.addWidget(trans_edit, 0, Qt.AlignTop)
+        
+        # row_siblings
+        siblings_tuple = (meta_row_widget, orig_row_widget, trans_row_widget)
+        for sub in (orig_row_widget, trans_row_widget):
+            for edit in sub.findChildren(PreviewTextEdit):
+                edit.row_siblings = siblings_tuple
+        
+        # Активируем
+        meta_row_layout.addStretch(1)
+        orig_row_layout.addStretch(1)
+        trans_row_layout.addStretch(1)
+        
+        meta_row_widget.layout().activate()
+        orig_row_widget.layout().activate()
+        trans_row_widget.layout().activate()
+        
+        self.preview_meta_layout.addWidget(meta_row_widget)
+        self.preview_orig_layout.addWidget(orig_row_widget)
+        self.preview_trans_layout.addWidget(trans_row_widget)
+        
+        try:
+            self.preview_key_to_group_widget[current_key] = (meta_row_widget, orig_row_widget, trans_row_widget)
+        except Exception:
+            self.preview_key_to_group_widget = {current_key: (meta_row_widget, orig_row_widget, trans_row_widget)}
+
+    def on_virtual_text_modified(self, text_edit):
+        """Ленивая инъекция: пользователь начал печатать в виртуальном поле → добавляем ключ в данные."""
+        if not getattr(text_edit, '_is_virtual', False):
+            return
+            
+        new_text = text_edit.toPlainText()
+        
+        # Игнорируем маркер — он не считается реальным вводом
+        marker = getattr(text_edit, '_virtual_marker', '')
+        if marker and new_text.strip() == marker.strip():
+            return  # Текст равен маркеру — пользователь ещё не начал печатать
+        
+        # Очищаем маркер из текста (он может быть в любом месте — зависит от позиции курсора)
+        clean_text = new_text.replace(marker, '') if marker else new_text
+        
+        if not clean_text.strip():
+            return  # Пока пустой — не инжектируем
+        
+        # Устанавливаем чистый текст в виджет (без маркера)
+        if marker and marker in new_text:
+            try:
+                text_edit.blockSignals(True)
+                text_edit.setPlainText(clean_text)
+                # Перемещаем курсор в конец
+                c = text_edit.textCursor()
+                c.movePosition(QTextCursor.End)
+                text_edit.setTextCursor(c)
+            finally:
+                text_edit.blockSignals(False)
+
+        vkey = text_edit._virtual_key
+        total_parts = text_edit._virtual_total_parts
+        
+        # Проверяем, не был ли уже инжектирован (защита от повторного вызова)
+        for ld in self.original_lines:
+            if ld['key'] == vkey:
+                # Уже инжектирован — просто обновляем текст через обычный механизм
+                idx = self.original_lines.index(ld)
+                text_edit.index = idx + text_edit._virtual_part_index
+                text_edit._is_virtual = False
+                self.on_preview_text_modified(text_edit, text_edit.index, self.original_lines[text_edit.index])
+                return
+        
+        # Инжектируем ВСЕ части ключа в данные
+        ref_parts = getattr(self, 'reference_data', {}).get(vkey, [])
+        base_index = len(self.original_lines)
+        
+        for p_idx in range(total_parts):
+            ref_text_part = ref_parts[p_idx] if p_idx < len(ref_parts) else ''
+            new_entry = {
+                'key': vkey,
+                'original_text': ref_text_part,
+                'display_text': ref_text_part,
+                'translated_text': clean_text if p_idx == text_edit._virtual_part_index else '',
+                'original_translated_text': '',
+                'is_empty': p_idx != text_edit._virtual_part_index or not bool(clean_text.strip()),
+                'part_index': p_idx,
+                'ends_with_backslash': p_idx < total_parts - 1,
+            }
+            self.original_lines.append(new_entry)
+            self.all_lines_data.append(new_entry)
+        
+        # Обновляем индексы у всех виртуальных полей этого ключа
+        from widgets import PreviewTextEdit
+        group_widgets = self.preview_key_to_group_widget.get(vkey)
+        if group_widgets:
+            mw, orw, trw = group_widgets
+            orl = orw.layout()
+            trl = trw.layout()
+            for child_edit in trw.findChildren(PreviewTextEdit):
+                if getattr(child_edit, '_virtual_key', None) == vkey:
+                    p_idx = child_edit._virtual_part_index
+                    child_edit.index = base_index + p_idx
+                    child_edit._is_virtual = False
+                    
+                    # Переподключаем text_changed на обычный обработчик
+                    try:
+                        child_edit.text_changed.disconnect()
+                    except Exception:
+                        pass
+                    child_edit.text_changed.connect(
+                        lambda *args, te=child_edit:
+                        self.on_preview_text_modified(te, te.index, self.original_lines[te.index])
+                    )
+                    
+                    # Подключаем вставку новой строки через Enter
+                    child_edit.line_inserted.connect(
+                        lambda ins_idx, move_text, te=child_edit,
+                               orl_=orl, trl_=trl,
+                               mw_=mw, orw_=orw, trw_=trw:
+                        self.on_preview_line_inserted(ins_idx, move_text, te, orl_, trl_, mw_, orw_, trw_)
+                    )
+                    # Подключаем удаление/слияние строки через Backspace
+                    child_edit.line_deleted.connect(
+                        lambda del_idx, merge_text, te=child_edit:
+                        self.on_preview_line_deleted(del_idx, te, merge_text)
+                    )
+                    
+                    # Обновляем стиль на обычный «новый текст»
+                    text_color = getattr(self, 'theme_text_modified', "#ff6666")
+                    new_style = f"color: {text_color}; background-color: transparent; border: none; border-radius: 0px;"
+                    child_edit.setStyleSheet(new_style)
+                    child_edit._original_style = new_style
+        
+        # Обновляем редактор (добавляем строки в QPlainTextEdit)
+        self.prevent_text_changed = True
+        try:
+            doc = self.translated_text_all.document()
+            cursor = QTextCursor(doc)
+            cursor.movePosition(QTextCursor.End)
+            for p_idx in range(total_parts):
+                text_part = clean_text if p_idx == text_edit._virtual_part_index else ''
+                cursor.insertText('\n' + text_part if doc.blockCount() > 0 else text_part)
+        except Exception:
+            pass
+        self.prevent_text_changed = False
+        
+        self.set_modified(True)
+        self.statusBar().showMessage(
+            get_translation(self.current_language, 'status_sync_complete')
+        )
+
+    def on_preview_text_changed(self, index, new_text):
+        """Прямая синхронизация изменений из предпросмотра в буфер данных (с дебаунсом)"""
+        if self.prevent_text_changed or getattr(self, 'is_updating_from_preview', False):
+            return
+            
+        try:
+            if 0 <= index < len(self.original_lines):
+                # Сохраняем правку в очередь (сохраняем переносы строк для мульти-строчных записей)
+                self.pending_sync_edits[index] = new_text
+                
+                # Перезапускаем таймер синхронизации
+                self.preview_sync_timer.stop()
+                self.preview_sync_timer.start()
+                
+                # Визуальный отклик (опционально)
+                self.statusBar().showMessage(get_translation(self.current_language, 'status_waiting_sync'))
+                
+                # Помечаем, что есть несохраненные изменения
+                self.set_modified(True)
+                        
+        except Exception as e:
+            print(f"Error buffering preview edit: {e}")
+
+    def apply_pending_preview_sync(self):
+        """Применяет накопленные в очереди правки из предпросмотра к основному редактору"""
+        if not self.pending_sync_edits or self.prevent_text_changed:
+            return
+            
+        self.is_updating_from_preview = True
+        self.prevent_text_changed = True
+        
+        try:
+            # Сортируем по индексу для предсказуемого обновления
+            indices = sorted(self.pending_sync_edits.keys())
+            
+            # Получаем документ основного редактора
+            if hasattr(self, 'translated_text_all'):
+                doc = self.translated_text_all.document()
+                
+                for index in indices:
+                    new_text = self.pending_sync_edits[index]
+                    
+                    # 1. Обновляем данные буфера
+                    if 0 <= index < len(self.original_lines):
+                        self.original_lines[index]['translated_text'] = new_text
+                        # Keep is_empty in sync so filters don't wrongly hide non-empty lines
+                        self.original_lines[index]['is_empty'] = not bool(new_text.strip())
+                    
+                    # 2. Обновляем визуальный блок в редакторе
+                    block = doc.findBlockByNumber(index)
+                    if block.isValid():
+                        cursor = QTextCursor(block)
+                        # Надежный метод замены текста в блоке БЕЗ затрагивания символа новой строки
+                        cursor.movePosition(QTextCursor.StartOfBlock)
+                        cursor.movePosition(QTextCursor.EndOfBlock, QTextCursor.KeepAnchor)
+                        cursor.insertText(new_text)
+                
+                self.set_modified(True)
+                self.update_stats()
+                
+            # Очищаем очередь
+            self.pending_sync_edits.clear()
+            self.statusBar().showMessage(get_translation(self.current_language, 'status_sync_complete'))
+
+
+            
+        except Exception as e:
+            print(f"Error in apply_pending_preview_sync: {e}")
+            ErrorLogger.log_error("SYNC_ERROR", f"Ошибка пакетной синхронизации: {e}")
+        finally:
+            self.prevent_text_changed = False
+            self.is_updating_from_preview = False
+
+    # [SEARCH_METHODS]
+    def on_search_text_changed(self, text, scroll=True, preferred_index=None, preferred_type=None):
+        """Обработка ввода текста в поиск"""
+        try:
+            self.search_matches = []
+            self.search_match_types = []  # Типы совпадений: 'text_original', 'text_translated' или 'audio'
+            self.current_match_index = -1
+            
+            # Снимаем выделение файла, если поиск очищен
+            if not text:
+                self.clear_audio_highlight()
+                self.update_search_matches_label()
+                return
+
+            case_sensitive = getattr(self, 'search_case_sensitive', False)
+            # search_text — это то, ЧТО мы ищем.
+            # Если поиск не чувствителен к регистру, мы ДОЛЖНЫ привести поисковый запрос к нижнему регистру.
+            search_text = text if case_sensitive else text.lower()
+
+            if len(search_text) < 1:  # Ищем от 1 символа
+                self.clear_audio_highlight()
+                self.update_search_matches_label()
+                return
+
+            # Ищем совпадения в тексте - РАЗЛИЧНЫЕ записи для одного ключа если совпадение в обоих полях
+            found_keys_audio = set()  # Для отслеживания ключей с аудио совпадениями
+            
+            # Предварительная загрузка флагов для оптимизации
+            s_orig = getattr(self, 'search_scope_original', True)
+            s_ref = getattr(self, 'search_scope_reference', True)
+            s_edit = getattr(self, 'search_scope_editor', True)
+            s_audio = getattr(self, 'search_scope_audio', True)
+
+            for i, line in enumerate(self.original_lines):
+                current_key = line.get('key')
+                
+                # 1. Поиск в оригинале (левое верхнее окно)
+                if s_orig:
+                    original = str(line.get('display_text', ''))
+                    key = str(line.get('key', ''))
+                    if not case_sensitive:
+                        original = original.lower()
+                        key = key.lower()
+                    if search_text in original or search_text in key:
+                        self.search_matches.append(i)
+                        self.search_match_types.append('text_original')
+                
+                # 2. Поиск в референсе (нижнее левое окно)
+                if s_ref:
+                    # ПОСЕГМЕНТНЫЙ ПОИСК: ищем только в том тексте, который РЕАЛЬНО отображается в этой строке
+                    ref_val = self.reference_data.get(current_key, [])
+                    part_idx = line.get('part_index', 0)
+                    
+                    found_ref_text = ""
+                    if isinstance(ref_val, list):
+                        # Если это список (CMP или многострочный), берем строго кусок по индексу
+                        if 0 <= part_idx < len(ref_val):
+                            found_ref_text = str(ref_val[part_idx])
+                    else:
+                        # Если это одиночная строка (обычный MIS), 
+                        # засчитываем совпадение ТОЛЬКО для первой части ключа, 
+                        # чтобы не дублировать результаты на все куски сообщения.
+                        if part_idx == 0:
+                            found_ref_text = str(ref_val)
+                    
+                    if not found_ref_text and not ref_val:
+                        found_ref_text = str(line.get('display_text', ''))
+                    
+                    if not case_sensitive:
+                        found_ref_text = found_ref_text.lower()
+                        
+                    if found_ref_text and search_text in found_ref_text:
+                        self.search_matches.append(i)
+                        self.search_match_types.append('text_reference')
+                
+                # 3. Поиск в редакторе (правое верхнее окно / перевод)
+                if s_edit:
+                    translated = str(line.get('translated_text', ''))
+                    if not case_sensitive:
+                        translated = translated.lower()
+                    if search_text in translated:
+                        self.search_matches.append(i)
+                        self.search_match_types.append('text_translated')
+                
+                # 4. Поиск в аудиофайлах
+                if s_audio:
+                    audio_info = self.m_res.get_audio_for_key(current_key) if hasattr(self, 'm_res') else self.miz_resource_manager.get_audio_for_key(current_key)
+                    if audio_info:
+                        audio_filename = audio_info[0]
+                        if not case_sensitive:
+                            audio_filename = audio_filename.lower()
+                        if search_text in audio_filename:
+                            if current_key not in found_keys_audio:
+                                self.search_matches.append(i)
+                                self.search_match_types.append('audio')
+                                found_keys_audio.add(current_key)
+            
+            # Сортируем по индексу для поддержания порядка
+            if self.search_matches:
+                sorted_indices = sorted(range(len(self.search_matches)), key=lambda i: self.search_matches[i])
+                self.search_matches = [self.search_matches[i] for i in sorted_indices]
+                self.search_match_types = [self.search_match_types[i] for i in sorted_indices]
+            
+            if self.search_matches:
+                # Если передан предпочтительный индекс (например, из контекстного меню строки),
+                match_idx_to_select = 0
+                if preferred_index is not None:
+                    # Ищем точное совпадение по строке + типу колонки
+                    found_exact = False
+                    if preferred_type is not None:
+                        for j, match_row in enumerate(self.search_matches):
+                            if match_row >= preferred_index and self.search_match_types[j] == preferred_type:
+                                match_idx_to_select = j
+                                found_exact = True
+                                break
+                    
+                    # Если точное с типом не нашли, ищем хотя бы по строке
+                    if not found_exact:
+                        for j, match_row in enumerate(self.search_matches):
+                            if match_row >= preferred_index:
+                                match_idx_to_select = j
+                                break
+                            
+                self.current_match_index = match_idx_to_select
+                match_index = self.search_matches[match_idx_to_select]
+                match_type = self.search_match_types[match_idx_to_select]
+                
+                # СКРОЛЛИМ ТОЛЬКО ЕСЛИ РАЗРЕШЕНО (не разрешено при авто-обновлении отображения)
+                if scroll:
+                    self.highlight_search_match(match_index, match_type, search_text)
+                    
+                    # Если первое совпадение в файле, выделяем его
+                    if match_type == 'audio':
+                        line = self.original_lines[match_index]
+                        current_key = line.get('key')
+                        self.highlight_audio_file(current_key)
+                    else:
+                        self.clear_audio_highlight()
+            
+            self.update_search_matches_label()
+        except Exception as e:
+            ErrorLogger.log_error("SEARCH_ERROR", f"Error in search text changed: {e}")
+            self.clear_audio_highlight()
+
+    def search_next(self):
+        """Переход к следующему совпадению"""
+        try:
+            if not self.search_matches:
+                if self.search_input.text():
+                    self.on_search_text_changed(self.search_input.text())
+                if not self.search_matches:
+                    return
+                
+            self.current_match_index += 1
+            if self.current_match_index >= len(self.search_matches):
+                self.current_match_index = 0
+            
+            match_index = self.search_matches[self.current_match_index]
+            match_type = self.search_match_types[self.current_match_index] if self.current_match_index < len(self.search_match_types) else 'text'
+            search_text = self.search_input.text()
+            self.highlight_search_match(match_index, match_type, search_text)
+            
+            # Обновляем счетчик совпадений
+            self.update_search_matches_label()
+            
+            # Обновляем выделение файла
+            if match_type == 'audio':
+                line = self.original_lines[match_index]
+                current_key = line.get('key')
+                self.highlight_audio_file(current_key)
+            else:
+                self.clear_audio_highlight()
+        except Exception as e:
+            ErrorLogger.log_error("SEARCH_ERROR", f"Error in search next: {e}")
+
+    def search_prev(self):
+        """Переход к предыдущему совпадению"""
+        try:
+            if not self.search_matches:
+                if self.search_input.text():
+                    self.on_search_text_changed(self.search_input.text())
+                if not self.search_matches:
+                    return
+                
+            self.current_match_index -= 1
+            if self.current_match_index < 0:
+                self.current_match_index = len(self.search_matches) - 1
+            
+            match_index = self.search_matches[self.current_match_index]
+            match_type = self.search_match_types[self.current_match_index] if self.current_match_index < len(self.search_match_types) else 'text'
+            search_text = self.search_input.text()
+            self.highlight_search_match(match_index, match_type, search_text)
+            
+            # Обновляем счетчик совпадений
+            self.update_search_matches_label()
+            
+            # Обновляем выделение файла
+            if match_type == 'audio':
+                line = self.original_lines[match_index]
+                current_key = line.get('key')
+                self.highlight_audio_file(current_key)
+            else:
+                self.clear_audio_highlight()
+        except Exception as e:
+            ErrorLogger.log_error("SEARCH_ERROR", f"Error in search prev: {e}")
+
+    def highlight_search_match(self, line_index, match_type='text_original', search_text=''):
+        """Скролл к строке в предпросмотре и синхронизация"""
+        try:
+            # Принудительный рендеринг, если виджет еще не создан
+            if line_index < len(self.original_lines):
+                current_key = self.original_lines[line_index].get('key')
+                if not hasattr(self, 'preview_key_to_group_widget') or current_key not in self.preview_key_to_group_widget:
+                    self.render_preview_until_index(line_index)
+
+            # Основной скролл к строке в превью
+            if hasattr(self, 'preview_key_to_group_widget') and line_index < len(self.original_lines):
+                current_key = self.original_lines[line_index].get('key')
+                if current_key in self.preview_key_to_group_widget:
+                    widget_data = self.preview_key_to_group_widget[current_key]
+                    # Определяем правильный layout для скролла в зависимости от типа совпадения
+                    scroll_area = getattr(self, 'preview_scroll', None)
+                    
+                    # ПОЛЬЗОВАТЕЛЬ: "убрать скроллинг нижнего окна при поиске в Оригинале"
+                    should_scroll_preview = True
+                    if match_type == 'text_original':
+                        should_scroll_preview = False
+                    
+                    widget_to_scroll = None
+                    if match_type == 'text_original':
+                        widget_to_scroll = widget_data[1] if isinstance(widget_data, (tuple, list)) else widget_data.get('orig')
+                    elif match_type == 'text_reference':
+                        widget_to_scroll = widget_data[1] if isinstance(widget_data, (tuple, list)) else widget_data.get('orig')
+                    elif match_type == 'text_translated':
+                        widget_to_scroll = widget_data[2] if isinstance(widget_data, (tuple, list)) else widget_data.get('trans')
+                    else:
+                        widget_to_scroll = widget_data[0] if isinstance(widget_data, (tuple, list)) else widget_data.get('meta')
+                    
+                    if should_scroll_preview and scroll_area and widget_to_scroll:
+                        try:
+                            if match_type == 'meta':
+                                self._scroll_to_widget_top(scroll_area, widget_to_scroll, smooth=True)
+                            else:
+                                # Для обычного текстового поиска просто гарантируем, что строка видна
+                                scroll_area.ensureWidgetVisible(widget_to_scroll, xMargin=0, yMargin=100)
+                        except Exception:
+                            pass
+                
+            # Если это совпадение за текст - синхронизируем редакторы БЕЗ предварительной очистки
+            # (sync_editors_to_line сам переопределит форматирование)
+            if match_type in ('text_original', 'text_translated', 'text_reference'):
+                self.sync_editors_to_line(line_index, match_type, search_text)
+            else:
+                # Если это совпадение за файл - снимаем выделение с редакторов
+                self.clear_editors_selection()
+        except Exception as e:
+            ErrorLogger.log_error("SEARCH_ERROR", f"Error in highlight match: {e}")
+
+    def start_find_replace(self, text, focus_type='replace', preferred_index=None, preferred_type=None):
+        """Инициирует поиск для замены из контекстного меню.
+        focus_type: 'find' - фокус на поле поиска, 'replace' - фокус на поле замены.
+        """
+        # Блокируем сигнал textChanged, чтобы setText не вызвал on_search_text_changed без preferred_index
+        self.search_input.blockSignals(True)
+        self.search_input.setText(text)
+        self.search_input.blockSignals(False)
+        
+        # Для замены принудительно ставим область поиска на Редактор,
+        # так как замена физически возможна только в переведенном тексте.
+        if focus_type == 'replace':
+            self.search_scope_original = False
+            self.search_scope_reference = False
+            self.search_scope_editor = True
+            self.search_scope_audio = False
+            
+            if hasattr(self, 'scope_orig_cb'): self.scope_orig_cb.setChecked(False)
+            if hasattr(self, 'scope_ref_cb'): self.scope_ref_cb.setChecked(False)
+            if hasattr(self, 'scope_edit_cb'): self.scope_edit_cb.setChecked(True)
+            if hasattr(self, 'scope_audio_cb'): self.scope_audio_cb.setChecked(False)
+            
+            # Меняем preferred_type на Редактор, так как мы только что сузили поиск
+            preferred_type = 'text_translated'
+            
+        self.on_search_text_changed(text, preferred_index=preferred_index, preferred_type=preferred_type)
+        
+        if focus_type == 'find':
+            self.search_input.setFocus()
+            self.search_input.selectAll()
+        else:
+            self.replace_input.setFocus()
+            self.replace_input.selectAll()
+
+
+    def on_replace_next_clicked(self):
+        """Заменяет текущее совпадение и переходит к следующему"""
+        try:
+            search_text = self.search_input.text()
+            if not search_text:
+                return
+
+            if self.current_match_index < 0 or not self.search_matches:
+                return
+
+            match_index = self.search_matches[self.current_match_index]
+            match_type = self.search_match_types[self.current_match_index]
+            
+            # Заменяем ТОЛЬКО если совпадение в колонке перевода
+            if match_type == 'text_translated':
+                search_text = self.search_input.text()
+                replace_text = self.replace_input.text()
+                
+                if not search_text:
+                    return
+
+                line = self.original_lines[match_index]
+                old_text = line.get('translated_text', '')
+                
+                # Используем регулярку для точной замены с учетом регистра (если нужно) или просто replace
+                # Для начала сделаем простой replace (регистрозависимый как в поиске)
+                # Поиск у нас регистронезависимый (text_lower), поэтому тут нужна аккуратность
+                import re
+                processed_text = re.sub(re.escape(search_text), replace_text, old_text, flags=re.IGNORECASE, count=1)
+                
+                if processed_text != old_text:
+                    line['translated_text'] = processed_text
+                    # Обновляем UI
+                    current_key = line.get('key')
+                    if hasattr(self, 'preview_key_to_group_widget') and current_key in self.preview_key_to_group_widget:
+                        widget_data = self.preview_key_to_group_widget[current_key]
+                        trans_row = widget_data[2] if isinstance(widget_data, (tuple, list)) else widget_data.get('trans')
+                        if trans_row:
+                            from widgets import PreviewTextEdit
+                            for edit in trans_row.findChildren(PreviewTextEdit):
+                                if getattr(edit, 'index', -1) == match_index:
+                                    edit.blockSignals(True)
+                                    edit.setPlainText(processed_text)
+                                    edit.blockSignals(False)
+                                    self.on_preview_text_modified(edit, match_index, line)
+                                    break
+                    
+                    # Синхронизируем верхний редактор и статистику
+                    saved_index = self.current_match_index
+                    self.update_display(update_preview=False)
+                    self.on_translation_changed()
+                    
+                    if self.search_matches:
+                        # После update_display self.current_match_index обнуляется или сбрасывается
+                        # Так как текущее совпадение в match_index удалено (заменено на другой текст), 
+                        # следующее совпадение переместилось на индекс saved_index массива search_matches.
+                        new_index = saved_index
+                        if new_index >= len(self.search_matches):
+                            new_index = 0
+                        # search_next прибавит 1, поэтому отнимаем 1
+                        self.current_match_index = new_index - 1
+                        if self.current_match_index < -1:
+                            self.current_match_index = -1
+                            
+                        self.search_next()
+            else:
+                # Если текущее совпадение не в переводе, просто идем к следующему
+                self.search_next()
+                
+        except Exception as e:
+            ErrorLogger.log_error("REPLACE_ERROR", f"Error in replace next: {e}")
+
+    def on_replace_all_clicked(self):
+        """Заменяет все совпадения в колонке перевода"""
+        try:
+            search_text = self.search_input.text()
+            if not search_text:
+                return
+
+            replace_text = self.replace_input.text()
+
+            count = 0
+            import re
+            pattern = re.compile(re.escape(search_text), re.IGNORECASE)
+            
+            for line_idx, line in enumerate(self.original_lines):
+                old_text = line.get('translated_text', '')
+                if old_text and pattern.search(old_text):
+                    new_text = pattern.sub(replace_text, old_text)
+                    if new_text != old_text:
+                        line['translated_text'] = new_text
+                        count += 1
+                        
+                        # Хирургическое обновление UI если виджет отрендерен
+                        current_key = line.get('key')
+                        if hasattr(self, 'preview_key_to_group_widget') and current_key in self.preview_key_to_group_widget:
+                            widget_data = self.preview_key_to_group_widget[current_key]
+                            trans_row = widget_data[2] if isinstance(widget_data, (tuple, list)) else widget_data.get('trans')
+                            if trans_row:
+                                from widgets import PreviewTextEdit
+                                for edit in trans_row.findChildren(PreviewTextEdit):
+                                    if getattr(edit, 'index', -1) == line_idx:
+                                        edit.blockSignals(True)
+                                        edit.setPlainText(new_text)
+                                        edit.blockSignals(False)
+                                        self.on_preview_text_modified(edit, line_idx, line)
+                                        break
+            
+            if count > 0:
+                # Обновляем только верхние редакторы и статы без перерисовки превью
+                self.update_display(update_preview=False)
+                self.on_translation_changed()
+                self.statusBar().showMessage(get_translation(self.current_language, 'status_replace_success', count=count), 3000)
+                # self.on_search_text_changed вызывается внутри update_display(scroll=False)
+            else:
+                self.statusBar().showMessage("No replacements made", 3000)
+            
+        except Exception as e:
+            ErrorLogger.log_error("REPLACE_ERROR", f"Error in replace all: {e}")
+
+    def clear_editors_selection(self):
+        """Снимает выделение со строк в редакторах оригинала и перевода"""
+        try:
+            # Очищаем ВСЕ выделения
+            if hasattr(self, 'original_text_all') and self.original_text_all:
+                self.original_text_all.setExtraSelections([])
+                cursor = self.original_text_all.textCursor()
+                cursor.clearSelection()
+                self.original_text_all.setTextCursor(cursor)
+            
+            if hasattr(self, 'translated_text_all') and self.translated_text_all:
+                self.translated_text_all.setExtraSelections([])
+                cursor = self.translated_text_all.textCursor()
+                cursor.clearSelection()
+                self.translated_text_all.setTextCursor(cursor)
+            
+            # Снимаем выделение и в preview окне
+            try:
+                from widgets import PreviewTextEdit
+                if hasattr(self, 'preview_layout') and self.preview_layout is not None:
+                    for i in range(self.preview_layout.count()):
+                        item = self.preview_layout.itemAt(i)
+                        if item:
+                            group_widget = item.widget()
+                            if group_widget:
+                                edits = group_widget.findChildren(PreviewTextEdit)
+                                for edit in edits:
+                                    edit.setExtraSelections([])
+                                    cursor = edit.textCursor()
+                                    cursor.clearSelection()
+                                    edit.setTextCursor(cursor)
+            except Exception:
+                pass
+        except Exception as e:
+            ErrorLogger.log_error("SEARCH_ERROR", f"Error clearing editors selection: {e}")
+
+    def sync_editors_to_line(self, line_index, match_type='text_original', search_text=''):
+        """Синхронизация редакторов с выбранной строкой - выделяет только найденный текст"""
+        try:
+            if line_index < 0 or line_index >= len(self.original_lines):
+                return
+            
+            case_sensitive = getattr(self, 'search_case_sensitive', False)
+            # search_text_to_find — это то, ЧТО мы ищем.
+            # Если поиск не чувствителен к регистру, то мы ищем маленькое в маленьком.
+            search_text_to_find = search_text if case_sensitive else (search_text.lower() if search_text else '')
+            
+            # Map text_reference to original column for synchronous centering
+            effective_match_type = match_type
+            if match_type == 'text_reference':
+                effective_match_type = 'text_original'
+
+            # Очищаем все прежние extra selections в основных редакторах и превью
+            try:
+                if hasattr(self, 'original_text_all') and self.original_text_all:
+                    self.original_text_all.setExtraSelections([])
+                if hasattr(self, 'translated_text_all') and self.translated_text_all:
+                    self.translated_text_all.setExtraSelections([])
+
+                from widgets import PreviewTextEdit
+                # Очищаем все PreviewTextEdit в трёх layout'ах (вместо старого preview_layout)
+                for layout in [getattr(self, 'preview_meta_layout', None),
+                               getattr(self, 'preview_orig_layout', None),
+                               getattr(self, 'preview_trans_layout', None)]:
+                    if layout:
+                        for i in range(layout.count()):
+                            widget = layout.itemAt(i).widget() if layout.itemAt(i) else None
+                            if widget:
+                                edits = widget.findChildren(PreviewTextEdit)
+                                for edit in edits:
+                                    try:
+                                        edit.setExtraSelections([])
+                                    except Exception:
+                                        pass
+            except Exception:
+                pass
+
+            # Синхронизация оригинала - ТОЛЬКО если совпадение в оригинальном тексте
+            # (Раньше здесь разрешалось 'text_reference', что приводило к ложным срабатываниям в верхнем левом окне)
+            if match_type == 'text_original':
+                if hasattr(self, 'original_text_all') and self.original_text_all and self.original_text_all.document():
+                    # Очищаем ВСЕ выделения
+                    self.original_text_all.setExtraSelections([])
+                    
+                    block = self.original_text_all.document().findBlockByNumber(line_index)
+                    if block.isValid():
+                        block_text = block.text()
+                        block_text_lower = block_text.lower()
+                        
+                        if match_type == 'text_reference':
+                            current_key = self.original_lines[line_index].get('key')
+                            ref_text = str(self.reference_data.get(current_key, ''))
+                            if not case_sensitive:
+                                ref_text = ref_text.lower()
+                            pos = ref_text.find(search_text_to_find)
+                        else:
+                            content_to_search = block_text if case_sensitive else block_text.lower()
+                            pos = content_to_search.find(search_text_to_find)
+                        
+                        if pos >= 0:
+                            # Снимаем все прежние extra selections
+                            try:
+                                self.original_text_all.setExtraSelections([])
+                            except Exception:
+                                pass
+
+                            # Создаём QExtraSelection для правильного выделения
+                            selection = QTextEdit.ExtraSelection()
+                            selection.cursor = QTextCursor(block)
+                            selection.cursor.setPosition(block.position() + pos)
+                            selection.cursor.movePosition(QTextCursor.Right, QTextCursor.KeepAnchor, len(search_text))
+
+                            # Форматирование
+                            selection.format.setBackground(QColor('#ff9900'))
+                            selection.format.setForeground(QColor('#000000'))
+
+                            # Устанавливаем видимый курсор без выделения (чтобы не показывался стандартный серый фон)
+                            cursor_for_view = QTextCursor(block)
+                            cursor_for_view.setPosition(block.position() + pos)
+                            cursor_for_view.clearSelection()
+                            self.original_text_all.setTextCursor(cursor_for_view)
+
+                            # Применяем выделение через ExtraSelection и обновляем вид
+                            self.original_text_all.setExtraSelections([selection])
+                            self.original_text_all.centerCursor()
+                            try:
+                                self.original_text_all.viewport().update()
+                            except Exception:
+                                pass
+                
+            # Синхронизация перевода - ТОЛЬКО если совпадение в переведенном тексте
+            if match_type == 'text_translated':
+                if hasattr(self, 'translated_text_all') and self.translated_text_all and self.translated_text_all.document():
+                    # Очищаем ВСЕ выделения
+                    self.translated_text_all.setExtraSelections([])
+                    
+                    if line_index < self.translated_text_all.blockCount():
+                        block_trans = self.translated_text_all.document().findBlockByNumber(line_index)
+                        if block_trans.isValid():
+                            block_text = block_trans.text()
+                            block_text_lower = block_text.lower()
+                            
+                            # Находим позицию найденного текста в строке
+                            content_to_search = block_text if case_sensitive else block_text.lower()
+                            pos = content_to_search.find(search_text_to_find)
+                            if pos >= 0:
+                                # Снимаем все прежние extra selections
+                                try:
+                                    self.translated_text_all.setExtraSelections([])
+                                except Exception:
+                                    pass
+
+                                # Создаём QExtraSelection для правильного выделения
+                                selection = QTextEdit.ExtraSelection()
+                                selection.cursor = QTextCursor(block_trans)
+                                selection.cursor.setPosition(block_trans.position() + pos)
+                                selection.cursor.movePosition(QTextCursor.Right, QTextCursor.KeepAnchor, len(search_text))
+
+                                # Форматирование
+                                selection.format.setBackground(QColor('#ff9900'))
+                                selection.format.setForeground(QColor('#000000'))
+
+                                # Устанавливаем видимый курсор без выделения
+                                cursor_for_view = QTextCursor(block_trans)
+                                cursor_for_view.setPosition(block_trans.position() + pos)
+                                cursor_for_view.clearSelection()
+                                self.translated_text_all.setTextCursor(cursor_for_view)
+
+                                # Применяем выделение через ExtraSelection и обновляем вид
+                                self.translated_text_all.setExtraSelections([selection])
+                                self.translated_text_all.centerCursor()
+                                try:
+                                    self.translated_text_all.viewport().update()
+                                except Exception:
+                                    pass
+            
+            # Синхронизация превью - ТОЛЬКО для текстовых совпадений
+            if match_type in ('text_original', 'text_translated', 'text_reference') and search_text_to_find:
+                try:
+                    if line_index < len(self.original_lines):
+                        current_key = self.original_lines[line_index].get('key')
+                        if hasattr(self, 'preview_key_to_group_widget') and current_key in self.preview_key_to_group_widget:
+                            group_widget = self.preview_key_to_group_widget[current_key]
+                            
+                            # Найти все PreviewTextEdit в этой группе и выделить нужный индекс
+                            from widgets import PreviewTextEdit
+                            edits = []
+                            # group_widget может быть кортежем (meta_row, orig_row, trans_row),
+                            # либо старой dict-структурой, либо одиночным QWidget
+                            try:
+                                if isinstance(group_widget, (tuple, list)):
+                                    for sub in group_widget:
+                                        if hasattr(sub, 'findChildren'):
+                                            edits.extend(sub.findChildren(PreviewTextEdit))
+                                elif isinstance(group_widget, dict):
+                                    for key in ('meta', 'orig', 'trans'):
+                                        sub = group_widget.get(key)
+                                        if sub and hasattr(sub, 'findChildren'):
+                                            edits.extend(sub.findChildren(PreviewTextEdit))
+                                elif hasattr(group_widget, 'findChildren'):
+                                    edits = group_widget.findChildren(PreviewTextEdit)
+                            except Exception:
+                                edits = []
+
+                            for edit in edits:
+                                # Очищаем выделения у всех редакторов превью
+                                edit.setExtraSelections([])
+                                
+                                # Новая логика: используем маркер is_reference и проверяем индекс или -1
+                                is_ref_edit = getattr(edit, 'is_reference', False)
+                                
+                                # Определяем, должен ли этот редактор быть выделен
+                                should_search = False
+                                edit_index = getattr(edit, 'index', -1)
+                                
+                                if match_type == 'text_original':
+                                    pass # Подсвечивается только в окне оригинала (не в превью), чтобы не дублировать выделение
+                                        
+                                elif match_type == 'text_reference':
+                                    # Тип 'text_reference' подсвечивает ТОЛЬКО референс колонку
+                                    if is_ref_edit:
+                                        # Проверяем не только ключ (через line_index), но и часть (part_index)
+                                        # Это убирает множественное выделение в одном ключе.
+                                        target_part = self.original_lines[line_index].get('part_index', 0)
+                                        if getattr(edit, 'part_index', 0) == target_part:
+                                            should_search = True
+                                        
+                                elif match_type == 'text_translated':
+                                    # Только колонка перевода
+                                    if not is_ref_edit and edit_index == line_index:
+                                        should_search = True
+
+                                if should_search and edit.document():
+                                    # В превью выделяем только найденный слово
+                                    doc_text = edit.toPlainText()
+                                    source_text = doc_text if case_sensitive else doc_text.lower()
+                                    
+                                    # Для text_reference в отдельных файлах (index=-1) или в основном поле
+                                    pos = source_text.find(search_text_to_find)
+                                    
+                                    if pos >= 0:
+                                        # Снимаем прежние extra selections
+                                        try:
+                                            edit.setExtraSelections([])
+                                        except Exception:
+                                            pass
+
+                                        # Создаём QExtraSelection для правильного выделения
+                                        selection = QTextEdit.ExtraSelection()
+                                        selection.cursor = QTextCursor(edit.document())
+                                        selection.cursor.setPosition(pos)
+                                        selection.cursor.movePosition(QTextCursor.Right, QTextCursor.KeepAnchor, len(search_text))
+                                        selection.format.setBackground(QColor('#ff9900'))
+                                        selection.format.setForeground(QColor('#000000'))
+
+                                        # Устанавливаем видимый курсор без выделения
+                                        cursor_for_view = QTextCursor(edit.document())
+                                        cursor_for_view.setPosition(pos)
+                                        cursor_for_view.clearSelection()
+                                        edit.setTextCursor(cursor_for_view)
+
+                                        edit.setExtraSelections([selection])
+                                        try:
+                                            edit.viewport().update()
+                                        except Exception:
+                                            pass
+                except Exception:
+                    pass
+        except Exception as e:
+            ErrorLogger.log_error("SYNC_ERROR", f"Error syncing editors: {e}")
+
+    def show_audio_in_editor(self, audio_filename):
+        """Показывает аудиофайл в превью: вставляет его имя в поиск."""
+        if hasattr(self, 'search_input'):
+            # Сначала очищаем, чтобы сбросить состояние поиска и выделений
+            self.search_input.clear()
+            # Затем устанавливаем новое имя. Даже если оно такое же, 
+            # сигнал textChanged сработает и обновит выделение.
+            self.search_input.setText(audio_filename)
+            self.search_input.setFocus()
+            
+        self.raise_()
+        self.activateWindow()
+
+    def jump_to_dict_key(self, dict_key):
+        """Прыгает к конкретному ключу словаря в главном окне без текстового поиска."""
+        # 1. Сбрасываем фильтры/поиск
+        if hasattr(self, 'search_input'):
+            self.search_input.clear()
+            
+        # 2. Ищем индекс строки по ключу
+        target_index = -1
+        for i, line in enumerate(self.original_lines):
+            if line.get('key') == dict_key:
+                target_index = i
+                break
+                
+        if target_index >= 0:
+            # 3. Синхронизируем левые панели (тексты) 
+            self.sync_editors_to_line(target_index)
+            
+            # 4. Скроллим правую панель (превью)
+            if hasattr(self, 'preview_key_to_group_widget') and dict_key in self.preview_key_to_group_widget:
+                widget_data = self.preview_key_to_group_widget[dict_key]
+                widget_to_scroll = widget_data[0] if isinstance(widget_data, (tuple, list)) else widget_data.get('meta')
+                
+                scroll_area = getattr(self, 'preview_scroll', None)
+                if scroll_area and widget_to_scroll:
+                    self._scroll_to_widget_top(scroll_area, widget_to_scroll)
+            
+            # 5. Подсвечиваем аудио-кубик оранжевым (чтобы было видно, что мы выбрали)
+            self.highlight_audio_file(dict_key)
+        else:
+            # Ключ не найден в текущей локали — показываем уведомление
+            current_locale = getattr(self, 'current_miz_folder', 'DEFAULT')
+            if current_locale != 'DEFAULT':
+                # Получаем имя аудиофайла для отображения
+                audio_filename = ''
+                if hasattr(self, 'miz_resource_manager'):
+                    res_key = self.miz_resource_manager.subtitle_to_reskey.get(dict_key, '')
+                    if res_key:
+                        audio_filename = (self.miz_resource_manager.map_resource_current.get(res_key) 
+                                        or self.miz_resource_manager.map_resource_default.get(res_key, ''))
+                msg = get_translation(self.current_language, 'status_key_default_only',
+                                      filename=audio_filename, locale=current_locale)
+                self.statusBar().showMessage(msg, 8000)
+
+        # 6. Поднимаем окно
+        self.raise_()
+        self.activateWindow()
+
+    def highlight_audio_file(self, audio_key):
+        """Выделяет аудиофайл с цветом #ff9900 при поиске или переходе из плеера"""
+        try:
+            # Снимаем выделение со старого файла
+            old_highlight = self.highlighted_audio_key
+            self.highlighted_audio_key = audio_key
+
+            if old_highlight and old_highlight in self.audio_labels_map:
+                for label in self.audio_labels_map[old_highlight]:
+                    self._update_audio_label_style(old_highlight, forced_label=label)
+
+            # Применяем выделение к новому файлу
+            if audio_key in self.audio_labels_map:
+                for label in self.audio_labels_map[audio_key]:
+                    self._update_audio_label_style(audio_key, forced_label=label)
+                
+                # Скролл к выделенному файлу в превью
+                if hasattr(self, 'preview_key_to_group_widget') and audio_key in self.preview_key_to_group_widget:
+                    widgets_dict = self.preview_key_to_group_widget[audio_key]
+                    # widgets_dict это кортеж (meta_row, orig_row, trans_row)
+                    if isinstance(widgets_dict, (tuple, list)) and len(widgets_dict) > 0:
+                        meta_widget = widgets_dict[0]
+                        # Используем preview_meta_scroll для скролла к метаданным (аудио там)
+                        if hasattr(self, 'preview_meta_scroll') and self.preview_meta_scroll:
+                            try:
+                                self._scroll_to_widget_top(self.preview_meta_scroll, meta_widget)
+                            except Exception:
+                                pass
+                    elif isinstance(widgets_dict, dict):
+                        # На случай если это dict (старая структура)
+                        meta_widget = widgets_dict.get('meta')
+                        if meta_widget and hasattr(self, 'preview_meta_scroll') and self.preview_meta_scroll:
+                            try:
+                                self._scroll_to_widget_top(self.preview_meta_scroll, meta_widget)
+                            except Exception:
+                                pass
+        except Exception as e:
+            ErrorLogger.log_error("AUDIO_HIGHLIGHT", f"Error highlighting audio: {e}")
+
+    def _scroll_to_widget_top(self, scroll_area, widget, smooth=True):
+        """Прокручивает scroll_area так, чтобы widget оказался вверху видимой области."""
+        try:
+            content_widget = scroll_area.widget()
+            if not content_widget:
+                return
+            # Позиция виджета относительно контента scroll area
+            pos = widget.mapTo(content_widget, QPoint(0, 0))
+            target_y = pos.y()
+            
+            scrollbar = scroll_area.verticalScrollBar()
+            if smooth:
+                # Плавный скролл
+                self._scroll_animation = QPropertyAnimation(scrollbar, b"value")
+                self._scroll_animation.setDuration(300)
+                self._scroll_animation.setEasingCurve(QEasingCurve.OutCubic)
+                self._scroll_animation.setStartValue(scrollbar.value())
+                self._scroll_animation.setEndValue(target_y)
+                self._scroll_animation.start()
+            else:
+                scrollbar.setValue(target_y)
+        except Exception:
+            pass
+
+    def clear_audio_highlight(self):
+        """Снимает выделение с аудиофайла"""
+        try:
+            if self.highlighted_audio_key:
+                old_key = self.highlighted_audio_key
+                self.highlighted_audio_key = None
+                if old_key in self.audio_labels_map:
+                    for label in self.audio_labels_map[old_key]:
+                        self._update_audio_label_style(old_key, forced_label=label)
+        except Exception as e:
+            ErrorLogger.log_error("AUDIO_HIGHLIGHT", f"Error clearing audio highlight: {e}")
+
+    def update_search_matches_label(self):
+        """Обновляет label с количеством совпадений и текущим индексом"""
+        try:
+            if hasattr(self, 'search_matches_label'):
+                count = len(self.search_matches)
+                if count > 0 and self.current_match_index >= 0:
+                    # Показываем счетчик "X из Y"
+                    current_num = self.current_match_index + 1
+                    label_text = f"{current_num} из {count}"
+                else:
+                    # Только общее количество
+                    label_text = get_translation(self.current_language, 'search_matches', count=count)
+                self.search_matches_label.setText(label_text)
+        except Exception as e:
+            ErrorLogger.log_error("SEARCH_ERROR", f"Error updating matches label: {e}")
+
+    def schedule_preview_update(self, delay_ms: int = 200):
+        """Планирует обновление предпросмотра с задержкой (debounce)"""
+        if self.preview_update_timer is None:
+            return
+            
+        # [PERFORMANCE] Адаптивная задержка в зависимости от количества строк
+        line_count = len(self.original_lines)
+        if line_count > 1000:
+            effective_delay = 600 # Сокращено с 2000мс
+        elif line_count > 300:
+            effective_delay = 300 # Сокращено с 1000мс
+        else:
+            effective_delay = delay_ms # Стандартные 200мс (или меньше)
+            
+        self.preview_update_timer.start(effective_delay)
+
+    def stop_all_preview_timers(self):
+        """Безусловно останавливает все таймеры обновления интерфейса"""
+        if self.preview_update_timer: self.preview_update_timer.stop()
+        if self.preview_batch_timer: self.preview_batch_timer.stop()
+        if self.filter_debounce_timer: self.filter_debounce_timer.stop()
+        if self.preview_sync_timer: self.preview_sync_timer.stop()
+
+    # [QUICK_SAVE]
+    def quick_save(self):
+        """Быстрое сохранение текущего файла (CTRL+S) без диалогов и обязательных бэкапов"""
+        if not hasattr(self, 'current_file_path') or not self.current_file_path:
+            return
+            
+        print(f"DEBUG: Quick Save triggered for {self.current_file_path}")
+        
+        # Принудительно синхронизируем правки из предпросмотра
+        self.apply_pending_preview_sync()
+        
+        # Проверяем тип файла
+        is_cmp = self.current_file_path.lower().endswith('.cmp')
+        is_miz = bool(getattr(self, 'current_miz_path', None))
+        
+        success = False
+        try:
+            if is_miz:
+                # Для MIZ используем перезапись без диалога и отчета
+                # Сохраняем и временно выключаем настройку бэкапа (по желанию пользователя игнорируем тогл)
+                old_backup = getattr(self, 'create_backup', False)
+                self.create_backup = False
+                try:
+                    self.save_miz_overwrite(silent=True)
+                    success = True
+                finally:
+                    self.create_backup = old_backup
+            elif is_cmp:
+                # Для CMP просто сохраняем
+                success = self.save_cmp_file(self.current_file_path)
+            else:
+                # Обычный файл - сохраняем напрямую в текущий путь
+                result_content = self.generate_translated_content()
+                with open(self.current_file_path, 'w', encoding='utf-8') as f:
+                    f.write(result_content)
+                self.reset_modified_display_state()
+                success = True
+                
+            if success:
+                # Показываем сообщение в статус-баре на 10 секунд
+                msg = get_translation(self.current_language, 'status_quick_save')
+                self.statusBar().showMessage(msg, 10000)
+                print(f"✅ Quick Save Success: {os.path.basename(self.current_file_path)}")
+                
+        except Exception as e:
+            msg = f"Save Error: {str(e)}"
+            ErrorLogger.log_error("QUICK_SAVE", msg)
+            self.statusBar().showMessage(msg, 5000)
+            self.show_custom_dialog(get_translation(self.current_language, 'error_title'), msg, "error")
+    
+    # [SAVE_METHODS]
+    def save_file(self):
+        """Сохраняет переведенный файл"""
+        if not self.current_file_path:
+            return
+            
+        # Проверяем не зажат ли Ctrl для быстрого сохранения
+        modifiers = QApplication.keyboardModifiers()
+        if modifiers & Qt.ControlModifier:
+            self.quick_save()
+            return
+        
+        # Проверяем расширение файла
+        is_cmp = self.current_file_path.lower().endswith('.cmp')
+        
+        # Проверяем, открыт ли .miz файл или .cmp
+        if self.current_miz_path:
+            # Показываем диалог с опциями сохранения для .miz
+            self.show_miz_save_dialog()
+        elif is_cmp:
+            # Показываем диалог сохранения для .cmp
+            self.show_cmp_save_dialog()
+        else:
+            # Используем старую логику сохранения для обычных файлов
+            self.save_regular_file()
+
+    def save_regular_file(self):
+        """Сохраняет обычный файл (не .miz)"""
+        # [SUPPRESS_REDRAW]
+        self.stop_all_preview_timers()
+        self._suppress_preview_update = True
+        
+        try:
+            # Сначала принудительно синхронизируем правки из предпросмотра
+            self.apply_pending_preview_sync()
+            
+            # Определяем начальную папку и имя файла
+            if self.current_file_path:
+                default_dir = self.last_save_folder if self.last_save_folder else os.path.dirname(self.current_file_path)
+                default_name = os.path.basename(self.current_file_path)
+            else:
+                default_dir = self.last_save_folder
+                default_name = "translated.txt"
+            
+            initial_path = os.path.join(default_dir, default_name)
+
+            # Сохраняем настройки перед сохранением файла
+            self.save_settings(update_preview=False, update_ui=False)
+
+            print(f"\n{'='*50}")
+            print(f"НАЧАЛО СОХРАНЕНИЯ ОБЫЧНОГО ФАЙЛА")
+            print(f"{'='*50}")
+            
+            # Используем новый метод generate_translated_content для получения переведённого контента
+            result_content = self.generate_translated_content()
+
+            # Сохраняем файл
+            options = QFileDialog.Options()
+            options |= QFileDialog.DontUseCustomDirectoryIcons
+            save_path, _ = QFileDialog.getSaveFileName(
+                self,
+                get_translation(self.current_language, 'save_file_btn'),
+                initial_path,
+                'Text files (*.txt);;All files (*)',
+                options=options
+            )
+            if not save_path:
+                return
+            
+            self.last_save_folder = os.path.dirname(save_path)
+            self.save_settings(update_preview=False, update_ui=False)
+
+            with open(save_path, 'w', encoding='utf-8') as f:
+                f.write(result_content)
+
+            filename = os.path.basename(save_path)
+            self.statusBar().showMessage(get_translation(self.current_language, 'status_file_saved', filename=filename))
+            
+            # Сбрасываем индикацию после успешного сохранения
+            self.reset_modified_display_state()
+            
+            self.show_save_report(save_path)
+            print(f"✅ Файл сохранен: {filename}")
+
+        except Exception as e:
+            error_msg = f"Ошибка сохранения файла: {str(e)}"
+            ErrorLogger.log_error("FILE_SAVE", error_msg)
+            self.show_custom_dialog(
+                get_translation(self.current_language, 'error_title'),
+                error_msg,
+                "error"
+            )
+        finally:
+            self._suppress_preview_update = False
+            # Обновляем верхние панели и цвета превью (красный → зелёный) без полной перестройки
+            try:
+                self.update_display(update_preview=False)
+                self.update_preview_theme_colors()
+            except Exception:
+                pass
+
+    def save_dictionary_as_txt(self):
+        """Сохраняет переведенный словарь как отдельный .txt файл"""
+        # [SUPPRESS_REDRAW]
+        self.stop_all_preview_timers()
+        self._suppress_preview_update = True
+        
+        try:
+            # Определяем начальную папку и имя файла
+            default_dir = self.last_save_folder if self.last_save_folder else os.path.dirname(self.current_file_path) if self.current_file_path else ""
+            default_name = 'dictionary.txt'
+            initial_path = os.path.join(default_dir, default_name)
+
+            # Диалог выбора места сохранения
+            options = QFileDialog.Options()
+            options |= QFileDialog.DontUseCustomDirectoryIcons
+            save_path, _ = QFileDialog.getSaveFileName(
+                self, 
+                get_translation(self.current_language, 'save_file_btn'), 
+                initial_path, 
+                'Text files (*.txt);;All files (*)',
+                options=options
+            )
+            
+            if not save_path:
+                return
+            
+            self.last_save_folder = os.path.dirname(save_path)
+            self.save_settings(update_preview=False, update_ui=False)
+
+            print(f"\n{'='*50}")
+            print(f"ЭКСПОРТ СЛОВАРЯ В .TXT: {os.path.basename(save_path)}")
+            print(f"{'='*50}")
+            
+            # Используем generate_translated_content для получения переведённого контента
+            result_content = self.generate_translated_content()
+            
+            # Сохраняем файл
+            with open(save_path, 'w', encoding='utf-8') as f:
+                f.write(result_content)
+            
+            # Показываем успех
+            filename = os.path.basename(save_path)
+            self.statusBar().showMessage(get_translation(self.current_language, 'status_file_saved', filename=filename))
+            
+            self.show_save_report(save_path)
+            print(f"✅ Словарь успешно экспортирован в {filename}")
+                
+        except Exception as e:
+            error_msg = f"Ошибка сохранения словаря: {str(e)}"
+            ErrorLogger.log_error("DICT_SAVE_AS_TXT", error_msg)
+            self.show_custom_dialog(get_translation(self.current_language, 'error_title'), error_msg, "error")
+        finally:
+            self._suppress_preview_update = False
+    
+    def show_save_report(self, save_path, missing_slashes=None, backup_path=None):
+        """Показывает отчет о сохранении"""
+        dialog = CustomDialog(self)
+        dialog.setWindowTitle(get_translation(self.current_language, 'save_report_title'))
+        
+        # Устанавливаем собственные стили для окна отчета о сохранении (тёмный фон + оранжевая рамка)
+        dialog.setStyleSheet("""
+            QDialog {
+                background-color: #3a3a3a;
+                border: 2px solid #ff9900;
+                border-radius: 10px;
+            }
+            QLabel {
+                color: #ffffff;
+                font-weight: bold;
+                font-size: 13px;
+                background-color: transparent;
+                border: none;
+            }
+            QPushButton {
+                background-color: #ff9900;
+                color: #000000;
+                border: none;
+                padding: 10px 20px;
+                border-radius: 16px;
+                font-weight: bold;
+                font-size: 12px;
+                min-width: 100px;
+                margin: 5px;
+            }
+            QPushButton:hover {
+                background-color: #e68a00;
+            }
+            QPushButton:pressed {
+                background-color: #cc7a00;
+            }
+        """)
+        
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(15)
+        
+        
+        # 1. Заголовок "Файл сохранен"
+        title_text = get_translation(self.current_language, 'save_report_title')
+        title_label = QLabel(title_text)
+        title_label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(title_label)
+        
+        # 2. Имя файла (ОРАНЖЕВЫЙ)
+        filename_label = QLabel(os.path.basename(save_path))
+        filename_label.setAlignment(Qt.AlignCenter)
+        filename_label.setStyleSheet("color: #ff9900; font-size: 14px; font-weight: bold;")
+        filename_label.setWordWrap(True)
+        layout.addWidget(filename_label)
+        
+        # 3. Статистика
+        total_keys = len(self.all_lines_data)
+        # Count non-empty original lines
+        translatable_lines = sum(1 for line in self.original_lines if line.get('original_text', '').strip())
+        # Count translated lines (where original is non-empty and translation is non-empty)
+        translated_lines = sum(1 for line in self.original_lines 
+                                if line.get('original_text', '').strip() and 
+                                   line.get('translated_text', '').strip())
+        
+        stats_text = (
+            f"{get_translation(self.current_language, 'save_stats')}\n"
+            f"{get_translation(self.current_language, 'total_lines', count=total_keys)}\n"
+            f"{get_translation(self.current_language, 'translatable_lines', count=translatable_lines)}\n"
+            f"{get_translation(self.current_language, 'translated_lines', count=translated_lines)}\n"
+            f"{get_translation(self.current_language, 'remaining_lines', count=max(0, translatable_lines - translated_lines))}"
+        )
+        
+        stats_label = QLabel(stats_text)
+        stats_label.setAlignment(Qt.AlignCenter)
+        stats_label.setStyleSheet("color: #ffffff; font-size: 12px;")
+        layout.addWidget(stats_label)
+        
+        # 4. Предупреждение о слешах
+        if missing_slashes:
+            warning_text = get_translation(self.current_language, 'slash_warning', count=len(missing_slashes))
+            warning_label = QLabel(warning_text)
+            warning_label.setAlignment(Qt.AlignCenter)
+            warning_label.setStyleSheet("color: #ffff00; font-weight: bold;")
+            warning_label.setWordWrap(True)
+            layout.addWidget(warning_label)
+            
+        # 5. Бэкап (ЗЕЛЕНЫЙ)
+        if backup_path:
+            backup_title = QLabel(get_translation(self.current_language, 'backup_created'))
+            backup_title.setAlignment(Qt.AlignCenter)
+            backup_title.setStyleSheet("color: #ffffff; margin-top: 10px;")
+            layout.addWidget(backup_title)
+            
+            backup_name = QLabel(os.path.basename(backup_path))
+            backup_name.setAlignment(Qt.AlignCenter)
+            backup_name.setStyleSheet("color: #00ff00; font-size: 14px; font-weight: bold;")
+            backup_name.setWordWrap(True)
+            layout.addWidget(backup_name)
+        
+        # Кнопка OK (центрированная)
+        btn_layout = QHBoxLayout()
+        btn_layout.addStretch()
+        ok_btn = QPushButton(get_translation(self.current_language, 'ok_btn'))
+        ok_btn.clicked.connect(dialog.accept)
+        btn_layout.addWidget(ok_btn)
+        btn_layout.addStretch()
+        layout.addLayout(btn_layout)
+        
+        dialog.exec_()
+        
+        self.statusBar().showMessage(get_translation(self.current_language, 'status_file_saved', filename=os.path.basename(save_path)))
+
+    def show_miz_save_dialog(self):
+        """Показывает диалог с опциями сохранения для .miz файлов с темной темой и футером"""
+        # --- НАСТРОЙКИ РАЗМЕРОВ КНОПОК ---
+        miz_btn_width = 250       # Ширина основных кнопок
+        miz_cancel_width = 100    # Ширина кнопки отмена
+        # ---------------------------------
+        
+        dialog = CustomDialog(self)
+        dialog.setWindowTitle(get_translation(self.current_language, 'save_dialog_title'))
+        dialog.setFixedWidth(450)
+        
+        # Стили диалога
+        dialog.setStyleSheet(f"""
+            QDialog {{
+                background-color: #3a3a3a;
+                color: #ddd;
+                border: 2px solid #ff9900;
+                border-radius: 10px;
+            }}
+            QLabel {{
+                color: #ffffff;
+                font-weight: bold;
+                font-size: 13px;
+                background-color: transparent;
+            }}
+            QPushButton {{
+                background-color: #ff9900;
+                color: #000000;
+                border: none;
+                padding: 10px 20px;
+                border-radius: 16px;
+                font-weight: bold;
+                font-size: 12px;
+                min-width: {miz_btn_width}px;
+                max-width: {miz_btn_width}px;
+                margin: 5px;
+            }}
+            QPushButton:hover {{
+                background-color: #e68a00;
+            }}
+            QPushButton:pressed {{
+                background-color: #cc7a00;
+            }}
+            QPushButton#cancelBtn {{
+                background-color: #ffffff;
+                color: #000000;
+                border: none;
+                padding: 5px 15px;
+                border-radius: 16px;
+                font-weight: bold;
+                font-size: 12px;
+                min-width: {miz_cancel_width}px;
+                max-width: {miz_cancel_width}px;
+                margin: 0px;
+            }}
+            QPushButton#cancelBtn:hover {{
+                background-color: #a3a3a3;
+            }}
+        """)
+        
+        # --- Очистка и настройка layout ---
+        if dialog.layout():
+            while dialog.layout().count():
+                child = dialog.layout().takeAt(0)
+                if child.widget():
+                    child.widget().deleteLater()
+            main_layout = dialog.layout()
+        else:
+            main_layout = QVBoxLayout(dialog)
+            
+        main_layout.setContentsMargins(2, 2, 2, 2)
+        main_layout.setSpacing(0)
+
+        # 1. Контент
+        content_widget = QWidget()
+        content_layout = QVBoxLayout(content_widget)
+        content_layout.setContentsMargins(30, 30, 30, 20)
+        content_layout.setSpacing(15)
+        
+        # Заголовок
+        title_container = QWidget()
+        title_layout = QVBoxLayout(title_container)
+        title_layout.setContentsMargins(0, 0, 0, 0)
+        title_layout.setSpacing(5)
+        title_layout.setAlignment(Qt.AlignCenter)
+        
+        title_text = QLabel(get_translation(self.current_language, 'mission_file_label'))
+        title_text.setAlignment(Qt.AlignCenter)
+        title_layout.addWidget(title_text)
+        
+        full_filename = os.path.basename(self.current_miz_path)
+        name_part, ext_part = os.path.splitext(full_filename)
+        display_name = (name_part[:40] + "..." + ext_part) if len(name_part) > 40 else full_filename
+        filename_label = QLabel(display_name)
+        filename_label.setAlignment(Qt.AlignCenter)
+        filename_label.setStyleSheet('color: #ff9900; background-color: transparent; border: none;')
+        title_layout.addWidget(filename_label)
+        content_layout.addWidget(title_container)
+        
+        # Инфо
+        info_label = QLabel(get_translation(self.current_language, 'save_dialog_info'))
+        info_label.setAlignment(Qt.AlignCenter)
+        info_label.setWordWrap(True)
+        content_layout.addWidget(info_label)
+        
+        # Кнопки
+        btns_container = QWidget()
+        btns_layout = QVBoxLayout(btns_container)
+        btns_layout.setAlignment(Qt.AlignCenter)
+        btns_layout.setSpacing(10)
+        
+        # Перезапись
+        overwrite_frame = QFrame()
+        overwrite_frame.setStyleSheet("QFrame { border: 1px solid #777; border-radius: 10px; background-color: transparent; margin: 5px; } QLabel { border: none; }")
+        overwrite_layout = QVBoxLayout(overwrite_frame)
+        overwrite_layout.setContentsMargins(10, 10, 10, 10)
+        overwrite_layout.setSpacing(5)
+        overwrite_layout.setAlignment(Qt.AlignCenter)
+        
+        overwrite_btn = QPushButton(get_translation(self.current_language, 'overwrite_btn'))
+        overwrite_btn.clicked.connect(lambda: self.handle_miz_save(dialog, 'overwrite'))
+        overwrite_layout.addWidget(overwrite_btn)
+        
+        backup_layout = QHBoxLayout()
+        backup_layout.setAlignment(Qt.AlignCenter)
+        backup_layout.setSpacing(10)
+        self.miz_backup_cb = ToggleSwitch()
+        self.miz_backup_cb.setChecked(getattr(self, 'create_backup', True))
+        backup_layout.addWidget(self.miz_backup_cb)
+        backup_label = QLabel(get_translation(self.current_language, 'miz_backup_label'))
+        backup_label.setStyleSheet("color: #ffffff; font-size: 12px; font-weight: normal;")
+        backup_layout.addWidget(backup_label)
+        overwrite_layout.addLayout(backup_layout)
+        btns_layout.addWidget(overwrite_frame)
+        
+        # Сохранить как
+        save_as_container = QHBoxLayout()
+        save_as_container.addStretch()
+        save_as_btn = QPushButton(get_translation(self.current_language, 'save_as_btn'))
+        save_as_btn.clicked.connect(lambda: self.handle_miz_save(dialog, 'save_as'))
+        save_as_container.addWidget(save_as_btn)
+        save_as_container.addStretch()
+        btns_layout.addLayout(save_as_container)
+        
+        # Сохранить отдельно в .txt
+        save_txt_container = QHBoxLayout()
+        save_txt_container.addStretch()
+        save_txt_btn = QPushButton(get_translation(self.current_language, 'save_txt_separately_btn'))
+        save_txt_btn.clicked.connect(lambda: [dialog.accept(), self.save_dictionary_as_txt()])
+        save_txt_container.addWidget(save_txt_btn)
+        save_txt_container.addStretch()
+        btns_layout.addLayout(save_txt_container)
+        
+        content_layout.addWidget(btns_container)
+        main_layout.addWidget(content_widget)
+        main_layout.addStretch()
+        
+        # 2. Разделитель
+        line = QFrame()
+        line.setFrameShape(QFrame.HLine)
+        line.setFixedHeight(1)
+        line.setStyleSheet("background-color: #555555; border: none;")
+        main_layout.addWidget(line)
+        
+        # 3. Футер
+        footer = QFrame()
+        footer.setFixedHeight(60)
+        footer.setStyleSheet("QFrame { background-color: #2b2b2b; border: none; border-bottom-left-radius: 6px; border-bottom-right-radius: 6px; }")
+        footer_layout = QHBoxLayout(footer)
+        footer_layout.setContentsMargins(0, 0, 0, 0)
+        
+        cancel_btn = QPushButton(get_translation(self.current_language, 'cancel_btn'))
+        cancel_btn.setObjectName("cancelBtn")
+        cancel_btn.setFixedSize(miz_cancel_width, 32)
+        cancel_btn.setCursor(Qt.PointingHandCursor)
+        
+        def on_cancel():
+            if hasattr(self, 'miz_backup_cb'):
+                self.create_backup = self.miz_backup_cb.isChecked()
+                self.save_settings()
+            dialog.reject()
+        cancel_btn.clicked.connect(on_cancel)
+        
+        footer_layout.addStretch()
+        footer_layout.addWidget(cancel_btn)
+        footer_layout.addStretch()
+        main_layout.addWidget(footer)
+        
+        # Показ диалога
+        self.stop_all_preview_timers()
+        self._suppress_preview_update = True
+        try:
+            dialog.exec_()
+        finally:
+            self._suppress_preview_update = False
+
+
+
+    def handle_miz_save(self, dialog, action):
+        """Обработчик выбора действия сохранения"""
+        # [SUPPRESS_REDRAW] Гарантируем подавление перед любыми действиями
+        self._suppress_preview_update = True
+        
+        # Сохраняем состояние бэкапа
+        if hasattr(self, 'miz_backup_cb'):
+            self.create_backup = self.miz_backup_cb.isChecked()
+            self.save_settings()
+            
+        dialog.accept()
+        
+        if action == 'overwrite':
+            self.save_miz_overwrite() # Больше не просит папку
+        elif action == 'save_as':
+            self.save_miz_as() # Больше не просит папку, только файл
+
+
+
+    def create_backup_file(self, file_path):
+        """Создает инкрементальную резервную копию файла (.backup, .backup1, ...)"""
+        if not os.path.exists(file_path):
+            return None
+            
+        base_backup_path = file_path + '.backup'
+        backup_path = base_backup_path
+        
+        counter = 1
+        while os.path.exists(backup_path):
+            backup_path = f"{base_backup_path}{counter}"
+            counter += 1
+            
+        try:
+            shutil.copy2(file_path, backup_path)
+            print(f"✅ Создана резервная копия: {os.path.basename(backup_path)}")
+            return backup_path
+        except Exception as e:
+            ErrorLogger.log_error("BACKUP", f"Не удалось создать резервную копию: {e}")
+            return None
+
+    def save_miz_overwrite(self, silent=False):
+        """Перезаписывает исходный .miz файл (сохраняет ВСЕ локали)"""
+        # [SUPPRESS_REDRAW] Флаг уже должен быть установлен в handle_miz_save
+        self._suppress_preview_update = True
+        success = False # Инициализируем для блока finally
+
+        try:
+            # Сначала принудительно синхронизируем правки из предпросмотра
+            self.apply_pending_preview_sync()
+            
+            progress = None
+            if not silent:
+                progress = MizProgressDialog(self)
+            
+            try:
+                print(f"\n{'='*50}")
+                print(f"ПЕРЕЗАПИСЬ .MIZ ФАЙЛА (ALL LOCALES)")
+                print(f"{'='*50}")
+                
+                # 1. Сначала сохраняем текущее состояние в память
+                if self.current_miz_folder:
+                     self.miz_trans_memory[self.current_miz_folder] = {
+                        'original_lines': copy.deepcopy(self.original_lines),
+                        'all_lines_data': copy.deepcopy(self.all_lines_data),
+                        'original_content': self.original_content
+                    }
+                
+                if progress:
+                    progress.show()
+                    progress.set_value(10)
+                
+                # Создаем резервную копия если нужно
+                backup_path = None
+                if getattr(self, 'create_backup', False):
+                    if progress: progress.set_value(20)
+                    backup_path = self.create_backup_file(self.current_miz_path)
+                
+                if progress: progress.set_value(70)
+                
+                # Переменная для отслеживания успеха
+                success = False
+                
+                # Временный файл для записи изменений
+                temp_miz = self.current_miz_path + '.tmp'
+                
+                try:
+                    # Читаем оригинал и пишем в темп
+                    with zipfile.ZipFile(self.current_miz_path, 'r') as zin:
+                        with zipfile.ZipFile(temp_miz, 'w', compression=zin.compressionlevel if hasattr(zin, 'compressionlevel') else zipfile.ZIP_DEFLATED) as zout:
+                            if progress: progress.set_value(50)
+                            
+                            # Собираем данные для всех локалей из памяти
+                            locales_data = {} # {folder: binary_content}
+                            
+                            # Список разрешенных папок локалей (для удаления мусора из удаленных локалей)
+                            allowed_folders = [f.lower() for f in self.current_miz_l10n_folders]
+                            
+                            for locale, data in self.miz_trans_memory.items():
+                                 # Генерируем контент для каждой локали
+                                 content = self.generate_content_from_data(data['all_lines_data'])
+                                 locales_data[locale] = content.encode('utf-8')
+
+                            # Список файлов, которые мы заменили
+                            replaced_files = []
+
+                            for item in zin.infolist():
+                                # Сохраняем оригинальное имя
+                                original_filename_for_read = item.filename
+                                
+                                try:
+                                    fixed_name = item.filename.encode('cp437').decode('utf-8')
+                                    item.filename = fixed_name
+                                    item.flag_bits |= 0x800  # UTF-8 flag
+                                except (UnicodeEncodeError, UnicodeDecodeError):
+                                    pass
+
+                                is_handled = False
+                                path_norm = item.filename.replace('\\', '/').strip('/')
+                                path_norm_lower = path_norm.lower()
+                                
+                                for locale in locales_data:
+                                    # 1. Проверка словаря
+                                    if path_norm_lower == f'l10n/{locale}/dictionary'.lower():
+                                        zout.writestr(item, locales_data[locale])
+                                        replaced_files.append(path_norm)
+                                        is_handled = True
+                                        print(f"DEBUG: Updated dictionary: {item.filename}")
+                                        break
+                                    
+                                    # 2. Проверка mapResource
+                                    if path_norm_lower == f'l10n/{locale}/mapResource'.lower():
+                                        updated_map = self.miz_resource_manager.get_updated_map_resource_content(zin, locale)
+                                        zout.writestr(item, updated_map.encode('utf-8'))
+                                        replaced_files.append(path_norm)
+                                        is_handled = True
+                                        print(f"DEBUG: Updated mapResource: {item.filename}")
+                                        break
+                                
+                                if not is_handled:
+                                    # Проверяем, не принадлежит ли этот файл удаленной локали (робастно)
+                                    if path_norm.lower().startswith("l10n/"):
+                                        parts = path_norm.split('/')
+                                        if len(parts) > 1:
+                                            folder_part = parts[1].lower()
+                                            if folder_part not in allowed_folders:
+                                                print(f"DEBUG: REMOVING residual file from deleted locale: {item.filename}")
+                                                continue
+                                            
+                                    # Проверяем, не заменен ли этот файл (pending_files)
+                                    path_norm_lower = path_norm.lower()
+                                    is_replaced = False
+                                    for pending_path in self.miz_resource_manager.get_pending_files():
+                                        if pending_path.lower() == path_norm_lower:
+                                            is_replaced = True
+                                            break
+                                    # Проверяем, не помечен ли файл на удаление (старый аудиофайл)
+                                    if not is_replaced:
+                                        for del_path in self.miz_resource_manager.get_files_to_delete():
+                                            if del_path.lower() == path_norm_lower:
+                                                is_replaced = True
+                                                print(f"DEBUG: DELETING old audio file: {item.filename}")
+                                                break
+                                    if is_replaced:
+                                        continue
+
+                                    zout.writestr(item, zin.read(original_filename_for_read))
+                            
+                            # Добавляем новые словари и mapResource
+                            for locale, content in locales_data.items():
+                                 dict_path = f'l10n/{locale}/dictionary'
+                                 already_replaced = any(f.lower() == dict_path.lower() for f in replaced_files)
+                                 if not already_replaced:
+                                      zout.writestr(dict_path, content)
+                                      
+                                 map_path = f'l10n/{locale}/mapResource'
+                                 already_replaced_map = any(f.lower() == map_path.lower() for f in replaced_files)
+                                 if not already_replaced_map:
+                                      updated_map = self.miz_resource_manager.get_updated_map_resource_content(zin, locale)
+                                      zout.writestr(map_path, updated_map.encode('utf-8'))
+
+                            # Записываем новые/замененные файлы ресурсов
+                            for target_path, source_path in self.miz_resource_manager.get_pending_files().items():
+                                if os.path.exists(source_path):
+                                    zout.write(source_path, arcname=target_path)
+
+                    # Atomic replace
+                    os.replace(temp_miz, self.current_miz_path)
+                    self.update_file_labels()
+                    
+                    if hasattr(self, 'reference_loader'):
+                        self.reference_loader.clear_cache()
+                        try:
+                            self.reference_data = self.reference_loader.load_locale_from_miz(
+                                self.current_miz_path, getattr(self, 'reference_locale', 'DEFAULT')
+                            )
+                        except Exception:
+                            pass
+                    
+                    self.reset_modified_display_state()
+                    success = True
+                    if progress: progress.set_value(100)
+                    
+                except Exception as e:
+                    if os.path.exists(temp_miz):
+                        os.remove(temp_miz)
+                    raise e
+                finally:
+                    if progress:
+                        progress.close()
+                
+                if success:
+                    self.miz_resource_manager.commit_pending_changes()
+                    # self.update_preview() # Убрано для оптимизации: данные в памяти актуальны
+                    if not silent:
+                        self.show_save_report(self.current_miz_path, backup_path=backup_path)
+                    
+            except Exception as e:
+                error_msg = get_translation(self.current_language, 'error_miz_save', error=str(e))
+                ErrorLogger.log_error("MIZ_OVERWRITE", error_msg)
+                self.show_custom_dialog(get_translation(self.current_language, 'error_title'), error_msg, "error")
+        finally:
+            self._suppress_preview_update = False
+            # Обновляем верхние панели и цвета превью (красный → зелёный) без полной перестройки
+            if success:
+                self.update_display(update_preview=False)
+                try:
+                    self.update_preview_theme_colors()
+                except Exception:
+                    pass
+
+    def save_miz_as(self):
+        """Сохраняет перевод в новый .miz файл (все локали)"""
+        # [SUPPRESS_REDRAW] Флаг уже должен быть установлен в handle_miz_save
+        self._suppress_preview_update = True
+        success = False # Инициализируем для блока finally
+
+        try:
+            # Сначала принудительно синхронизируем правки из предпросмотра
+            self.apply_pending_preview_sync()
+            
+            progress = None
+            try:
+                # Определяем начальную папку и имя файла
+                default_dir = self.last_save_folder if self.last_save_folder else os.path.dirname(self.current_miz_path) if self.current_miz_path else ""
+                default_name = os.path.splitext(os.path.basename(self.current_miz_path))[0] + f"_translated.miz" if self.current_miz_path else f"mission_translated.miz"
+                initial_path = os.path.join(default_dir, default_name)
+
+                # Диалог выбора файла (стандартный)
+                options = QFileDialog.Options()
+                options |= QFileDialog.DontUseCustomDirectoryIcons
+                save_path, _ = QFileDialog.getSaveFileName(self, get_translation(self.current_language, 'save_dialog_title'), initial_path, "DCS Mission (*.miz)", options=options)
+                
+                if not save_path:
+                    return
+
+                self.last_save_folder = os.path.dirname(save_path)
+                
+                # 1. Сначала сохраняем текущее состояние в память
+                if self.current_miz_folder:
+                     self.miz_trans_memory[self.current_miz_folder] = {
+                        'original_lines': copy.deepcopy(self.original_lines),
+                        'all_lines_data': copy.deepcopy(self.all_lines_data),
+                        'original_content': self.original_content
+                    }
+
+                progress = MizProgressDialog(self)
+                progress.show()
+                progress.set_value(10)
+                
+                try:
+                    with zipfile.ZipFile(self.current_miz_path, 'r') as zin:
+                        with zipfile.ZipFile(save_path, 'w', compression=zin.compressionlevel if hasattr(zin, 'compressionlevel') else zipfile.ZIP_DEFLATED) as zout:
+                            progress.set_value(50)
+                            locales_data = {} 
+                            allowed_folders = [f.lower() for f in self.current_miz_l10n_folders]
+                            
+                            for locale, data in self.miz_trans_memory.items():
+                                 content = self.generate_content_from_data(data['all_lines_data'])
+                                 locales_data[locale] = content.encode('utf-8')
+
+                            replaced_files = []
+                            for item in zin.infolist():
+                                original_filename_for_read = item.filename
+                                try:
+                                    fixed_name = item.filename.encode('cp437').decode('utf-8')
+                                    item.filename = fixed_name
+                                    item.flag_bits |= 0x800 
+                                except: pass
+
+                                is_handled = False
+                                path_norm = item.filename.replace('\\', '/').strip('/')
+                                path_norm_lower = path_norm.lower()
+                                
+                                for locale in locales_data:
+                                    if path_norm_lower == f'l10n/{locale}/dictionary'.lower():
+                                        zout.writestr(item, locales_data[locale])
+                                        replaced_files.append(path_norm)
+                                        is_handled = True
+                                        break
+                                    if path_norm_lower == f'l10n/{locale}/mapResource'.lower():
+                                        updated_map = self.miz_resource_manager.get_updated_map_resource_content(zin, locale)
+                                        zout.writestr(item, updated_map.encode('utf-8'))
+                                        replaced_files.append(path_norm)
+                                        is_handled = True
+                                        break
+                                
+                                if not is_handled:
+                                    if path_norm.lower().startswith("l10n/"):
+                                        parts = path_norm.split('/')
+                                        if len(parts) > 1:
+                                            folder_part = parts[1].lower()
+                                            if folder_part not in allowed_folders:
+                                                continue
+                                                
+                                    path_norm_lower = path_norm.lower()
+                                    is_replaced = False
+                                    for pending_path in self.miz_resource_manager.get_pending_files():
+                                        if pending_path.lower() == path_norm_lower:
+                                            is_replaced = True
+                                            break
+                                    if not is_replaced:
+                                        for del_path in self.miz_resource_manager.get_files_to_delete():
+                                            if del_path.lower() == path_norm_lower:
+                                                is_replaced = True
+                                                break
+                                    if is_replaced:
+                                        continue
+                                        
+                                    zout.writestr(item, zin.read(original_filename_for_read))
+                            
+                            for locale, content in locales_data.items():
+                                 dict_path = f'l10n/{locale}/dictionary'
+                                 already_replaced = any(f.lower() == dict_path.lower() for f in replaced_files)
+                                 if not already_replaced:
+                                      zout.writestr(dict_path, content)
+                                      
+                                 map_path = f'l10n/{locale}/mapResource'
+                                 already_replaced_map = any(f.lower() == map_path.lower() for f in replaced_files)
+                                 if not already_replaced_map:
+                                      updated_map = self.miz_resource_manager.get_updated_map_resource_content(zin, locale)
+                                      zout.writestr(map_path, updated_map.encode('utf-8'))
+
+                            for target_path, source_path in self.miz_resource_manager.get_pending_files().items():
+                                if os.path.exists(source_path):
+                                    zout.write(source_path, arcname=target_path)
+
+                    success = True
+                    progress.set_value(100)
+                    self.current_miz_path = save_path
+                    self.update_stats()
+                    self.update_file_labels()
+
+                except Exception as e:
+                    if os.path.exists(save_path):
+                        os.remove(save_path)
+                    raise e
+                
+                if success:
+                    self.miz_resource_manager.commit_pending_changes()
+                    if hasattr(self, 'reference_loader'):
+                        self.reference_loader.clear_cache()
+                        try:
+                            self.reference_data = self.reference_loader.load_locale_from_miz(
+                                self.current_miz_path, getattr(self, 'reference_locale', 'DEFAULT')
+                            )
+                        except Exception:
+                            pass
+                    self.reset_modified_display_state()
+
+            except Exception as e:
+                error_msg = get_translation(self.current_language, 'error_miz_save', error=str(e))
+                ErrorLogger.log_error("MIZ_SAVE_AS", error_msg)
+                self.show_custom_dialog("Error", error_msg, "error")
+            finally:
+                if progress: progress.close()
+        finally:
+            self._suppress_preview_update = False
+            # Обновляем верхние панели и цвета превью (красный → зелёный) без полной перестройки
+            if success:
+                self.update_display(update_preview=False)
+                try:
+                    self.update_preview_theme_colors()
+                except Exception:
+                    pass
+
+
+
+    def replace_file_in_zip(self, zip_path, file_path_within_zip, new_content):
+        """Безопасная замена файла в ZIP-архиве"""
+        temp_zip = None
+        try:
+            print(f"🔄 Начинаю замену файла в архиве: {file_path_within_zip}")
+            
+            # Создаем временный файл
+            temp_zip = zip_path + ".temp"
+            
+            # Создаем новый архив с замененным файлом
+            with zipfile.ZipFile(zip_path, 'r') as zin, \
+                 zipfile.ZipFile(temp_zip, 'w', zipfile.ZIP_DEFLATED) as zout:
+                
+                # Копируем все файлы из старого архива
+                for item in zin.infolist():
+                    if item.filename != file_path_within_zip:
+                        # Копируем без изменений
+                        data = zin.read(item.filename)
+                        zout.writestr(item, data)
+                        print(f"   📋 Скопирован: {item.filename}")
+                    else:
+                        print(f"   ⏩ Пропускаем старую версию: {item.filename}")
+                
+                # Добавляем новый/обновленный файл dictionary
+                zout.writestr(file_path_within_zip, new_content.encode('utf-8'))
+                print(f"   📝 Добавлен новый файл: {file_path_within_zip}")
+            
+            # Заменяем оригинальный архив
+            os.remove(zip_path)
+            os.rename(temp_zip, zip_path)
+            
+            print(f"✅ Файл {file_path_within_zip} успешно заменен в архиве")
+            return True
+            
+        except Exception as e:
+            error_msg = f"Ошибка при замене файла в ZIP-архиве: {str(e)}"
+            ErrorLogger.log_error("ZIP_REPLACE", error_msg, f"Путь: {zip_path}, файл: {file_path_within_zip}")
+            print(f"⚠ {error_msg}")
+            
+            # Очищаем временный файл при ошибке
+            if temp_zip and os.path.exists(temp_zip):
+                try:
+                    os.remove(temp_zip)
+                    print(f"🧹 Удален временный файл: {temp_zip}")
+                except:
+                    pass
+                    
+            return False
+        
+    def generate_translated_content(self):
+        """Генерирует переведенное содержимое для dictionary с помощью нового парсера"""
+        import tempfile
+        import os
+
+        # Создаем временный файл для парсера
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.lua', delete=False, encoding='utf-8') as f:
+            f.write(self.original_content)
+            temp_file = f.name
+
+        try:
+            # Собираем переводы в словарь для парсера
+            # Формат: ключ -> список переведённых строк (каждая строка файла - отдельный элемент)
+            translations = {}
+
+            # Группируем переводы по ключу
+            for line_data in self.all_lines_data:
+                key = line_data['key']
+
+                if key not in translations:
+                    translations[key] = []
+
+                # Используем translated_text, даже если он пустой ('')
+                # Падаем назад на оригинал только если перевода вообще нет (None)
+                raw_translated = line_data.get('translated_text')
+                if raw_translated is None:
+                    raw_translated = line_data.get('original_text', '')
+                
+                if raw_translated:
+                    parts = raw_translated.split('\n')
+                    translations[key].extend(parts)
+                else:
+                    # Пустая строка
+                    translations[key].append('')
+
+            # Используем новый парсер для сохранения
+            # Сначала парсим файл для получения структуры
+            self.dictionary_parser.entries = {}
+            self.dictionary_parser.parse_file(temp_file)
+
+            # Сохраняем переводы
+            self.dictionary_parser.save_translations(temp_file + '_out', translations)
+
+            # Читаем результат
+            with open(temp_file + '_out', 'r', encoding='utf-8') as f:
+                result_content = f.read()
+
+            return result_content
+
+        finally:
+            # Удаляем временные файлы
+            for temp_file_path in [temp_file, temp_file + '_out']:
+                if os.path.exists(temp_file_path):
+                    os.unlink(temp_file_path)
+
+    def get_line_data_by_key(self, key):
+        """Вспомогательный метод для поиска данных по ключу"""
+        for line_data in self.all_lines_data:
+            if line_data['key'] == key:
+                return line_data
+        return None
+
+    def register_custom_tooltip(self, widget, text, side='bottom'):
+        """Регистрирует виджет для показа кастомного тултипа (QLabel-based)."""
+        if not hasattr(self, '_custom_tooltip_map'):
+            self._custom_tooltip_map = {}
+        # Сохраняем текст и сторону появления
+        self._custom_tooltip_map[widget] = {'text': text, 'side': side}
+        try:
+            widget.setToolTip('')
+        except Exception:
+            pass
+        try:
+            widget.installEventFilter(self)
+        except Exception:
+            pass
+
+    def unregister_custom_tooltip(self, widget):
+        """Удаляет регистрацию кастомного тултипа и возвращает виджет в исходное состояние."""
+        try:
+            if hasattr(self, '_custom_tooltip_map') and widget in self._custom_tooltip_map:
+                del self._custom_tooltip_map[widget]
+        except Exception:
+            pass
+
+    def _show_pending_tooltip(self):
+        """Отображает отложенный тултип после задержки (вызывается по таймеру)"""
+        if hasattr(self, '_pending_tooltip_data') and self._pending_tooltip_data:
+            data = self._pending_tooltip_data
+            if not hasattr(self, 'custom_tooltip'):
+                return
+                
+            # Обработка разных типов данных в очереди
+            if len(data) == 3:
+                text, obj, info = data
+                # Проверяем, не является ли объект QAction (для меню недавних)
+                from PyQt5.QtWidgets import QAction
+                if isinstance(obj, QAction):
+                    # ПРОВЕРКА: показываем только если меню еще открыто
+                    if hasattr(self, 'recent_menu') and self.recent_menu.isVisible():
+                        # info здесь это QPoint (координаты курсора)
+                        self.custom_tooltip.show_tooltip_at_pos(text, info)
+                    else:
+                        # Если меню закрылось, сбрасываем данные
+                        self._pending_tooltip_data = None
+                else:
+                    # Стандартный путь: info это либо сторона (string), либо позиция (QPoint)
+                    from PyQt5.QtCore import QPoint
+                    if isinstance(info, QPoint):
+                        self.custom_tooltip.show_tooltip_at_pos(text, info)
+                    else:
+                        self.custom_tooltip.show_tooltip(text, obj, info)
+        
+        # Сброс флага/данных после обработки (таймер уже остановился сам так как он singleShot по умолчанию или мы его стопнули)
+        # Мы не будем сбрасывать _pending_tooltip_data здесь принудительно для всех случаев, 
+        # так как это делается в Enter/Leave логике.
+    
+    # [EVENT_HANDLERS]
+    def on_translation_changed(self):
+        """Обработчик изменения текста перевода"""
+        if self.prevent_text_changed or self.is_updating_display or getattr(self, '_suppress_preview_update', False):
+            return
+        
+        # Получаем все строки перевода
+        raw_text = self.translated_text_all.toPlainText()
+        translation_lines = raw_text.split('\n')
+        
+        # Исправление: если текст заканчивается переносом строки, split('\n') 
+        # добавляет лишнюю пустую строку в конце. Удаляем её, если она пустая.
+        if translation_lines and not translation_lines[-1] and raw_text.endswith('\n'):
+            translation_lines.pop()
+
+        # [SMART PASTE] Попытка обнаружить и удалить контекст AI
+        context_stripped = False
+        ai_context = getattr(self, 'ai_context_1', '').strip()
+        
+        if ai_context and len(translation_lines) > len(self.original_lines):
+            context_lines = ai_context.split('\n')
+            # Проверяем, совпадают ли первые строки с контекстом
+            if len(translation_lines) >= len(context_lines):
+                # Сравниваем строки
+                match = True
+                for i in range(len(context_lines)):
+                    if translation_lines[i] != context_lines[i]:
+                        match = False
+                        break
+                
+                if match:
+                    # Контекст найден, удаляем его
+                    print("DEBUG: Context detected in paste, stripping...")
+                    
+                    # Определяем, сколько удалять (контекст + отступ)
+                    lines_to_remove = len(context_lines)
+                    
+                    # Проверяем пустую строку после контекста (которую добавляет copy_all_english как \n\n)
+                    if len(translation_lines) > lines_to_remove and not translation_lines[lines_to_remove].strip():
+                        lines_to_remove += 1
+                        
+                    translation_lines = translation_lines[lines_to_remove:]
+                    context_stripped = True
+                    self.statusBar().showMessage(get_translation(self.current_language, 'status_context_stripped'))
+
+        # [BUFFER] Мы больше не обрезаем строки принудительно здесь,
+        # чтобы пользователь мог свободно нажимать Enter.
+        # Теперь translation_lines может быть длиннее, чем self.original_lines.
+        
+        # [BUFFER SYNC] Синхронизируем количество строк в левом окне (оригинал)
+        # чтобы скроллбары всегда совпадали по высоте
+        current_trans_count = len(translation_lines)
+        required_orig_count = len(self.original_lines)
+        
+        # Определяем, сколько строк должно быть в оригинальном окне
+        target_orig_window_count = max(required_orig_count, current_trans_count)
+        
+        # Получаем текущее количество строк в виджете оригинала
+        actual_orig_window_lines = self.original_text_all.toPlainText().split('\n')
+        
+        if len(actual_orig_window_lines) != target_orig_window_count:
+            # Обновляем оригинал, добавляя или убирая пустые "буферные" строки
+            self.prevent_text_changed = True # На всякий случай, хотя оригинал ReadOnly
+            
+            # Сохраняем позицию скролла оригинала
+            orig_scroll = self.original_text_all.verticalScrollBar().value()
+            
+            # Формируем новый текст для окна оригинала
+            new_orig_lines = [line['original_text'] for line in self.original_lines]
+            if target_orig_window_count > len(new_orig_lines):
+                new_orig_lines.extend([''] * (target_orig_window_count - len(new_orig_lines)))
+            
+            self.original_text_all.setPlainText('\n'.join(new_orig_lines))
+            self.original_text_all.verticalScrollBar().setValue(orig_scroll)
+            
+            self.prevent_text_changed = False
+
+        if context_stripped:
+             # Если контекст удалили, обновляем виджет
+            self.prevent_text_changed = True
+            
+            cursor = self.translated_text_all.textCursor()
+            scroll_pos = self.translated_text_all.verticalScrollBar().value()
+            
+            self.translated_text_all.setPlainText('\n'.join(translation_lines))
+            
+            self.translated_text_all.verticalScrollBar().setValue(scroll_pos)
+            self.translated_text_all.setTextCursor(cursor)
+            
+            self.prevent_text_changed = False
+
+        
+        # Обновляем переводы в данных (только для реальных строк оригинала!)
+        # Сначала сохраним старые значения для вычисления diff'а
+        old_texts = [line.get('translated_text', '') for line in self.original_lines]
+
+        changed_indices = set()
+        for i, line_data in enumerate(self.original_lines):
+            if i < len(translation_lines):
+                new_text = translation_lines[i].rstrip('\r')
+            else:
+                new_text = ''
+
+            # Сравнение старого и нового значения
+            try:
+                if old_texts[i] != new_text:
+                    changed_indices.add(i)
+            except Exception:
+                # В случае проблем с индексами — пометим индекс на обновление
+                changed_indices.add(i)
+
+            line_data['translated_text'] = new_text
+            # Помечаем строку как изменённую в этой сессии
+            if i in changed_indices:
+                line_data['session_modified'] = True
+
+        # [BUFFER] Сохраняем "лишние" строки буфера отдельно
+        if len(translation_lines) > len(self.original_lines):
+            self.extra_translation_lines = translation_lines[len(self.original_lines):]
+        else:
+            self.extra_translation_lines = []
+
+        self.update_stats()
+
+        # [LIVE FILTER] Если включен фильтр пустых строк, запускаем отложенное обновление
+        if self.filter_empty or getattr(self, 'filter_empty_keys', True):
+            # Задержка 400мс (сокращено с 1500мс)
+            self.filter_debounce_timer.start(400)
+
+        # Если есть изменившиеся индексы — пытаемся селективно обновить только соответствующие группы
+        if changed_indices:
+            try:
+                updated = self.update_preview_for_indices(changed_indices)
+            except Exception:
+                updated = False
+
+            if not updated:
+                # fallback: полная перестройка (debounced 300мс)
+                self.schedule_preview_update(300)
+        else:
+            # Нет изменений — ничего не делаем
+            pass
+
+        if changed_indices:
+            self.set_modified(True)
+        self.statusBar().showMessage(get_translation(self.current_language, 'status_translation_updated'))
+    
+    def clear_translation(self):
+        """Очищает весь перевод"""
+        if not self.original_lines:
+            return
+        
+        # Используем кастомный диалог
+        dialog = CustomDialog(self)
+        dialog.setWindowTitle(get_translation(self.current_language, 'clear_dialog_title'))
+        
+        # Устанавливаем собственные стили для окна подтверждения очистки (тёмный фон + оранжевая рамка)
+        dialog.setStyleSheet("""
+            QDialog {
+                background-color: #3a3a3a;
+                border: 2px solid #ff9900;
+                border-radius: 10px;
+            }
+            QLabel {
+                color: #ffffff;
+                font-weight: bold;
+                font-size: 13px;
+                background-color: transparent;
+                border: none;
+            }
+            QPushButton {
+                background-color: #ff9900;
+                color: #000000;
+                border: none;
+                padding: 10px 20px;
+                border-radius: 16px;
+                font-weight: bold;
+                font-size: 12px;
+                min-width: 80px;
+                margin: 5px;
+            }
+            QPushButton:hover {
+                background-color: #e68a00;
+            }
+            QPushButton:pressed {
+                background-color: #cc7a00;
+            }
+            QPushButton#cancelBtn {
+                background-color: #ffffff;
+                color: #000000;
+                border-radius: 16px;
+            }
+            QPushButton#cancelBtn:hover {
+                background-color: #a3a3a3;
+            }
+        """)
+        
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(15)
+        
+        # Текст вопроса
+        question_label = QLabel(get_translation(self.current_language, 'clear_question'))
+        question_label.setAlignment(Qt.AlignCenter)
+        question_label.setWordWrap(True)
+        
+        # Кнопки
+        button_layout = QHBoxLayout()
+        yes_btn = QPushButton(get_translation(self.current_language, 'yes_btn'))
+        yes_btn.clicked.connect(lambda: self.handle_clear_confirmation(dialog, True))
+        no_btn = QPushButton(get_translation(self.current_language, 'no_btn'))
+        no_btn.setObjectName("cancelBtn")
+        no_btn.clicked.connect(lambda: self.handle_clear_confirmation(dialog, False))
+        
+        button_layout.addStretch()
+        button_layout.addWidget(yes_btn)
+        button_layout.addWidget(no_btn)
+        button_layout.addStretch()
+        
+        layout.addWidget(question_label)
+        layout.addLayout(button_layout)
+        
+        # Показываем диалог
+        dialog.exec_()
+    
+    def handle_clear_confirmation(self, dialog, confirmed):
+        """Обработчик подтверждения очистки перевода"""
+        dialog.accept()
+        if confirmed:
+            # Очищаем перевод
+            changed_indices = []
+            for i, line_data in enumerate(self.original_lines):
+                if line_data.get('translated_text', ''):
+                    line_data['translated_text'] = ''
+                    changed_indices.append(i)
+
+            self.extra_translation_lines = []
+
+            # Обновляем основное отображение БЕЗ перестройки превью
+            self.update_display(update_preview=False)
+
+            # Если были реальные изменения — пытаемся селективно обновить превью
+            if changed_indices:
+                try:
+                    updated = self.update_preview_for_indices(changed_indices)
+                except Exception:
+                    updated = False
+
+                # Если селективный апдейт не сработал — планируем перестроение (debounced)
+                if not updated:
+                    try:
+                        self.schedule_preview_update(200)
+                    except Exception:
+                        try:
+                            self.update_preview()
+                        except Exception:
+                            pass
+
+                self.set_modified(True)
+            else:
+                # Ничего не изменилось — не трогаем превью и не планируем перестройку
+                pass
+
+            self.statusBar().showMessage(get_translation(self.current_language, 'status_translation_cleared'))
+
+    def show_custom_dialog(self, title, message, dialog_type="info"):
+        """Показывает кастомный диалог с указанным типом"""
+        dialog = CustomDialog(self)
+        dialog.setWindowTitle(title)
+        
+        # Устанавливаем фиксированный размер для диалога
+        dialog.setFixedSize(400, 200)
+        
+        # Вместо установки глобального стиля для QDialog, устанавливаем только для содержимого
+        content_style = """
+            QLabel {
+                color: #ffffff;
+                font-weight: bold;
+                font-size: 13px;
+                background-color: transparent;
+                border: none;
+            }
+            QPushButton {
+                background-color: #ff9900;
+                color: #000000;
+                border: none;
+                padding: 10px 20px;
+                border-radius: 16px;
+                font-weight: bold;
+                font-size: 12px;
+                min-width: 100px;
+                margin: 5px;
+            }
+            QPushButton:hover {
+                background-color: #e68a00;
+            }
+            QPushButton:pressed {
+                background-color: #cc7a00;
+            }
+        """
+        
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(30, 30, 30, 30)
+        layout.setSpacing(15)
+        
+        # Создаем контейнер для содержимого
+        content_widget = QWidget()
+        content_widget.setStyleSheet(content_style)
+        content_layout = QVBoxLayout(content_widget)
+        content_layout.setContentsMargins(0, 0, 0, 0)
+        content_layout.setSpacing(15)
+        
+        error_label = QLabel(message)
+        error_label.setAlignment(Qt.AlignCenter)
+        error_label.setWordWrap(True)
+        error_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        
+        ok_btn = QPushButton(get_translation(self.current_language, 'ok_btn'))
+        ok_btn.clicked.connect(dialog.accept)
+        
+        # Контейнер для кнопки (чтобы не растягивалась)
+        btn_layout = QHBoxLayout()
+        btn_layout.addStretch()
+        btn_layout.addWidget(ok_btn)
+        btn_layout.addStretch()
+        
+        content_layout.addWidget(error_label)
+        content_layout.addLayout(btn_layout)
+        
+        layout.addWidget(content_widget)
+        
+        dialog.exec_()
+
+    def show_question_dialog(self, title, message):
+        """Показывает кастомный диалог с кнопками Да/Нет в стиле приложения"""
+        dialog = CustomDialog(self)
+        dialog.setWindowTitle(title)
+        dialog.setFixedSize(440, 200)
+        
+        content_style = """
+            QLabel {
+                color: #ffffff;
+                font-weight: bold;
+                font-size: 13px;
+                background-color: transparent;
+                border: none;
+            }
+            QPushButton {
+                background-color: #ff9900;
+                color: #000000;
+                border: none;
+                padding: 10px 20px;
+                border-radius: 16px;
+                font-weight: bold;
+                font-size: 12px;
+                min-width: 100px;
+                margin: 5px;
+            }
+            QPushButton:hover {
+                background-color: #e68a00;
+            }
+            QPushButton:pressed {
+                background-color: #cc7a00;
+            }
+            QPushButton#noBtn {
+                background-color: #ffffff;
+                color: #000000;
+            }
+            QPushButton#noBtn:hover {
+                background-color: #a3a3a3;
+            }
+        """
+        
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(30, 30, 30, 30)
+        
+        content_widget = QWidget()
+        content_widget.setStyleSheet(content_style)
+        content_layout = QVBoxLayout(content_widget)
+        content_layout.setContentsMargins(0, 0, 0, 0)
+        content_layout.setSpacing(15)
+        
+        msg_label = QLabel(message)
+        msg_label.setAlignment(Qt.AlignCenter)
+        msg_label.setWordWrap(True)
+        
+        yes_btn = QPushButton(get_translation(self.current_language, 'yes_btn'))
+        no_btn = QPushButton(get_translation(self.current_language, 'no_btn'))
+        no_btn.setObjectName("noBtn")
+        
+        yes_btn.clicked.connect(dialog.accept)
+        no_btn.clicked.connect(dialog.reject)
+        
+        btn_layout = QHBoxLayout()
+        btn_layout.addStretch()
+        btn_layout.addWidget(yes_btn)
+        btn_layout.addWidget(no_btn)
+        btn_layout.addStretch()
+        
+        content_layout.addWidget(msg_label)
+        content_layout.addLayout(btn_layout)
+        
+        layout.addWidget(content_widget)
+        
+        # Возвращает True, если нажато ДА (accept), иначе False
+        return dialog.exec_() == QDialog.Accepted
+
+    def show_exit_confirmation_dialog(self, mode='exit'):
+        """Показывает стилизованное окно подтверждения выхода или открытия нового файла при наличии несохраненных изменений"""
+        dialog = CustomDialog(self)
+        dialog.bg_color = QColor("#333333")  # Устанавливаем тёмный фон для родителя
+        
+        title_key = f'confirm_{mode}_title'
+        msg_key = f'confirm_{mode}_msg'
+        
+        dialog.setWindowTitle(get_translation(self.current_language, title_key))
+        dialog.setFixedSize(440, 220)
+        # Гарантируем, что диалог поверх всех окон
+        dialog.setWindowFlags(dialog.windowFlags() | Qt.WindowStaysOnTopHint)
+        
+        # Стилизация согласно пожеланиям пользователя
+        content_style = """
+            QWidget#ConfirmContent {
+                background-color: #333333;
+                border: none;
+                border-radius: 9px;  /* Чуть меньше радиус из-за 1px отступа */
+            }
+            QLabel {
+                color: #ffffff;
+                font-weight: bold;
+                font-size: 14px;
+                background-color: transparent;
+                border: none;
+            }
+            QPushButton#yesBtn {
+                background-color: #ff3333;  /* Красный для Да */
+                color: #ffffff;
+                border: none;
+                padding: 10px 25px;
+                border-radius: 18px;  /* Пилюля */
+                font-weight: bold;
+                font-size: 13px;
+                min-width: 100px;
+                margin: 5px;
+            }
+            QPushButton#yesBtn:hover {
+                background-color: #cc1111;
+            }
+            QPushButton#yesBtn:pressed {
+                background-color: #990000;
+            }
+            QPushButton#noBtn {
+                background-color: #ffffff;  /* Белый для Отмена */
+                color: #000000;
+                border: none;
+                padding: 10px 25px;
+                border-radius: 18px;  /* Пилюля */
+                font-weight: bold;
+                font-size: 13px;
+                min-width: 100px;
+                margin: 5px;
+            }
+            QPushButton#noBtn:hover {
+                background-color: #cccccc;
+            }
+            QPushButton#noBtn:pressed {
+                background-color: #aaaaaa;
+            }
+        """
+        
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(1, 1, 1, 1)  # Отступ 1px для отображения оранжевой рамки
+        
+        container = QWidget()
+        container.setObjectName("ConfirmContent")
+        container.setStyleSheet(content_style)
+        container_layout = QVBoxLayout(container)
+        container_layout.setContentsMargins(30, 30, 30, 30)
+
+        container_layout.setSpacing(20)
+        
+        msg_label = QLabel(get_translation(self.current_language, msg_key))
+        msg_label.setAlignment(Qt.AlignCenter)
+        msg_label.setWordWrap(True)
+        
+        yes_btn = QPushButton(get_translation(self.current_language, 'yes_exit_btn'))
+        yes_btn.setObjectName("yesBtn")
+        yes_btn.setCursor(Qt.PointingHandCursor)
+        
+        no_btn = QPushButton(get_translation(self.current_language, 'cancel_exit_btn'))
+        no_btn.setObjectName("noBtn")
+        no_btn.setCursor(Qt.PointingHandCursor)
+        
+        yes_btn.clicked.connect(dialog.accept)
+        no_btn.clicked.connect(dialog.reject)
+        
+        btn_layout = QHBoxLayout()
+        btn_layout.addStretch()
+        btn_layout.addWidget(yes_btn)
+        btn_layout.addWidget(no_btn)
+        btn_layout.addStretch()
+        
+        container_layout.addWidget(msg_label)
+        container_layout.addLayout(btn_layout)
+        
+        layout.addWidget(container)
+        
+        return dialog.exec_() == QDialog.Accepted
+
+    def _on_audio_label_context_menu(self, global_pos, key):
+        """Отображает контекстное меню для аудио-метки в превью."""
+        menu = QMenu(self)
+        # Стиль меню полностью совпадает с менеджером файлов (manager.py)
+        menu.setStyleSheet("""
+            QMenu {
+                background-color: #2b2b2b;
+                color: #ffffff;
+                border: 1px solid #ff9900;
+                border-radius: 4px;
+                padding: 5px;
+            }
+            QMenu::item {
+                padding: 5px 25px 5px 20px;
+                border-radius: 3px;
+            }
+            QMenu::item:selected {
+                background-color: #ff9900;
+                color: #1a1a1a;
+            }
+            QMenu::separator {
+                height: 1px;
+                background: #444;
+                margin: 5px 0;
+            }
+        """)
+        
+        save_action = menu.addAction(get_translation(self.current_language, 'fm_tooltip_download'))
+        
+        action = menu.exec_(global_pos)
+        if action == save_action:
+            self._save_preview_audio_to_disk(key)
+
+    def _save_preview_audio_to_disk(self, key):
+        """Сохранение аудиофайла из превью на диск."""
+        # Получаем данные о файле через ресурсный менеджер
+        res_info = self.miz_resource_manager.get_audio_for_key(key)
+        if not res_info:
+            return
+            
+        filename, _ = res_info
+        
+        # Определяем начальную папку для диалога
+        default_dir = getattr(self, 'last_save_folder', os.path.expanduser("~"))
+        initial_path = os.path.join(default_dir, filename)
+        
+        # Открываем диалог сохранения
+        file_path, _ = QFileDialog.getSaveFileName(
+            self, 
+            get_translation(self.current_language, 'fm_tooltip_download'),
+            initial_path,
+            get_translation(self.current_language, 'audio_file_filter')
+        )
+        
+        if file_path:
+            self.last_save_folder = os.path.dirname(file_path)
+            
+            # Путь к миссии может быть None, если работаем с .txt (но pending файлы все равно сохранятся)
+            miz_path = getattr(self, 'current_miz_path', None)
+            
+            # Извлекаем файл
+            if self.miz_resource_manager.extract_resource_to_file(miz_path, key, file_path):
+                # Показываем уведомление об успехе над всеми метками этого аудио
+                labels = self.audio_labels_map.get(key, [])
+                if labels:
+                    success_msg = get_translation(self.current_language, 'fm_export_success').format(path=os.path.basename(file_path))
+                    for label in labels:
+                        try:
+                            self.register_custom_tooltip(label, success_msg, side='top')
+                            # Скрываем через 3 секунды
+                            QTimer.singleShot(3000, lambda l=label: self.unregister_custom_tooltip(l))
+                        except Exception:
+                            pass
+            else:
+                # В случае ошибки показываем уведомление
+                self.show_custom_dialog("Error", f"Could not export file: {filename}", "error")
+
+    def open_audio_player(self, key, auto_play=False):
+        """Открывает окно аудиоплеера для прослушивания аудио по ключу"""
+        if not self.current_miz_path:
+            return
+            
+        try:
+            # [FIX] Сбрасываем "желтую" подсветку поиска при любом переключении аудио
+            self.clear_audio_highlight()
+
+            # 1. Получаем информацию об аудио для данного ключа
+            audio_info = self.miz_resource_manager.get_audio_for_key(key)
+            if not audio_info:
+                self.show_custom_dialog("Audio Error", f"No audio resource found for key: {key}", "error")
+                return
+                
+            filename, is_current_locale = audio_info
+            
+            # 2. Извлекаем файл во временную папку (используем key, менеджер сам найдет файл)
+            temp_path = self.miz_resource_manager.extract_resource_to_temp(self.current_miz_path, key)
+            
+            if not temp_path or not os.path.exists(temp_path):
+                self.show_custom_dialog("Audio Error", f"Could not extract audio file: {filename}", "error")
+                return
+
+            def handle_replace(key, new_path):
+                self.handle_audio_replacement(key, new_path)
+
+            # 3. Если плеер уже открыт — обновляем его (Синглтон)
+            if self.audio_player is not None:
+                try:
+                    # Проверяем, жив ли объект (через runtime check или просто try)
+                    if not self.audio_player.isVisible() and not self.audio_player.isMinimized():
+                        pass # Просто проверка на валидность объекта
+                        
+                    def handle_download(key):
+                        self._save_preview_audio_to_disk(key)
+
+                    is_heuristic = self.miz_resource_manager.is_heuristic_match(key)
+                    self.audio_player.update_audio(temp_path, filename, key, self.last_audio_folder, is_heuristic=is_heuristic, on_replace_callback=handle_replace, on_download_callback=handle_download)
+                    
+                    if self.audio_player.isHidden():
+                        self.audio_player.show()
+                    self.audio_player.raise_()
+                    self.audio_player.activateWindow()
+                    
+                    if auto_play:
+                        self.audio_player.toggle_play_pause()
+                    return
+                except (Exception, RuntimeError) as e:
+                    print(f"DEBUG: Singleton update failed, destroying old player: {e}")
+                    try:
+                        self.audio_player.close()
+                        self.audio_player.deleteLater()
+                    except:
+                        pass
+                    self.audio_player = None
+
+
+            # 4. Создаем новое окно плеера (немодальное)
+            from dialogs import AudioPlayerDialog
+            is_heuristic = self.miz_resource_manager.is_heuristic_match(key)
+            def handle_download(key):
+                self._save_preview_audio_to_disk(key)
+
+            self.audio_player = AudioPlayerDialog(
+                temp_path, 
+                filename, 
+                self.current_language, 
+                key=key, 
+                on_replace_callback=handle_replace,
+                on_download_callback=handle_download,
+                parent=self,
+                last_audio_folder=self.last_audio_folder,
+                is_heuristic=is_heuristic,
+                miz_resource_manager=getattr(self, 'miz_resource_manager', None),
+                current_miz_path=getattr(self, 'current_miz_path', None),
+                shared_duration_cache=self.shared_duration_cache
+            )
+            # Обнуляем ссылку при закрытии окна
+            self.audio_player.finished.connect(lambda: [setattr(self, 'audio_player', None), self.set_active_audio_key(None)])
+            self.set_active_audio_key(key)
+            self.audio_player.show()
+            if auto_play:
+                self.audio_player.toggle_play_pause()
+            
+        except Exception as e:
+            error_msg = f"Error opening audio player: {str(e)}"
+            ErrorLogger.log_error("AUDIO_PLAYER_OPEN", error_msg)
+            self.show_custom_dialog("Error", error_msg, "error")
+
+    def on_heuristic_toggle(self):
+        """Переключает смещение эвристики и обновляет отображение аудио."""
+        if not hasattr(self, 'miz_resource_manager') or not self.miz_resource_manager:
+            return
+        
+        success = self.miz_resource_manager.toggle_heuristic_offset()
+        if not success:
+            return
+        
+        # Обновляем текст кнопки
+        new_offset = self.miz_resource_manager.get_current_offset_label()
+        offset_str = f"+{new_offset}" if new_offset > 0 else str(new_offset)
+        self.heuristic_toggle_btn.setText(
+            get_translation(self.current_language, 'heuristic_toggle_btn', offset=offset_str)
+        )
+        
+        # Сбрасываем аудиоплеер (если открыт)
+        if self.audio_player is not None:
+            self.audio_player.reset_to_no_file()
+        
+        # Обновляем отображение (аудио-метки обновятся)
+        self.update_preview()
+
+
+    def reset_modified_display_state(self):
+        """Сбрасывает индикацию правок (красный -> зеленый) после сохранения.
+        Устанавливает текущий перевод как новый 'оригинал'.
+        """
+        try:
+            self.prevent_text_changed = True
+            
+            # 1. Сначала сбрасываем текущую активную локаль (все списки)
+            # Обновляем all_lines_data (мастер-список)
+            processed_refs = set()
+            for line in self.all_lines_data:
+                current_trans = line.get('translated_text', '')
+                if line.get('original_translated_text', '') != current_trans:
+                    line['session_modified'] = True
+                line['original_translated_text'] = current_trans
+                if current_trans is not None:
+                    line['original_text'] = current_trans
+                    line['display_text'] = current_trans
+                    line['is_empty'] = not (current_trans and current_trans.strip())
+                processed_refs.add(id(line))
+            
+            # На всякий случай обновляем original_lines (если там другие ссылки, хотя обычно те же)
+            for line in self.original_lines:
+                if id(line) not in processed_refs:
+                    current_trans = line.get('translated_text', '')
+                    if line.get('original_translated_text', '') != current_trans:
+                        line['session_modified'] = True
+                    line['original_translated_text'] = current_trans
+                    if current_trans is not None:
+                        line['original_text'] = current_trans
+                        line['display_text'] = current_trans
+                        line['is_empty'] = not (current_trans and current_trans.strip())
+            
+            # 2. Теперь сбрасываем ВСЕ локали в памяти
+            for folder, memory in self.miz_trans_memory.items():
+                for list_key in ['all_lines_data', 'original_lines']:
+                    if list_key in memory:
+                        for line in memory[list_key]:
+                            current_trans = line.get('translated_text', '')
+                            line['original_translated_text'] = current_trans
+                            if current_trans is not None:
+                                line['original_text'] = current_trans
+                                line['display_text'] = current_trans
+                                line['is_empty'] = not (current_trans and current_trans.strip())
+
+            # 3. Рекалькуляция key_all_empty (для Lua словарей)
+            keys_with_content = set()
+            for line in self.all_lines_data:
+                if not line.get('is_empty', True):
+                    keys_with_content.add(line.get('key'))
+            
+            for line in self.all_lines_data:
+                line['key_all_empty'] = line.get('key') not in keys_with_content
+            
+            # Переприменяем фильтры (это скроет строки, которые стали пустыми и обновит все окна)
+            self.apply_filters(full_rebuild=False)
+            
+            # Немедленно обновляем цвета виджетов превью (красный → салатовый/зелёный)
+            # Снимаем флаг подавления, чтобы update_preview_theme_colors мог работать
+            self._suppress_preview_update = False
+            try:
+                self.update_preview_theme_colors()
+                
+                # Если текущая локаль совпадает с референсной (DEFAULT-DEFAULT),
+                # то структурные изменения (новые/удалённые строки) требуют полной
+                # перерисовки, т.к. update_preview_theme_colors не создаёт новые виджеты.
+                current_locale = getattr(self, 'current_locale_folder', None)
+                ref_locale = getattr(self, 'reference_locale', None)
+                if current_locale and ref_locale and current_locale == ref_locale:
+                    self.update_preview()
+            except Exception as e:
+                print(f"DEBUG: update_preview_theme_colors failed: {e}")
+            
+            # Сбрасываем флаг несохраненных изменений
+            self.set_modified(False)
+            
+        except Exception as e:
+            print(f"DEBUG: Error in reset_modified_display_state: {e}")
+        finally:
+            self.prevent_text_changed = False
+
+    def _get_translation_color(self, is_modified, line_data):
+        """Возвращает цвет текста перевода в превью:
+        - Красный: текст изменён и не сохранён
+        - Жёлто-зелёный (#bbf324): текст был изменён в этой сессии и уже сохранён
+        - Зелёный: текст не менялся
+        """
+        if is_modified:
+            return getattr(self, 'theme_text_modified', '#ff6666')
+        if line_data.get('session_modified', False):
+            return getattr(self, 'theme_text_session', '#bbf324')
+        return getattr(self, 'theme_text_saved', '#2ecc71')
+
+    def on_preview_text_modified(self, edit_widget, index, line_data):
+        """Вызывается мгновенно при вводе текста в предпросмотре для смены цвета"""
+        try:
+            current_text = edit_widget.toPlainText()
+            original_text = line_data.get('original_translated_text', '')
+            
+            # --- ЦВЕТ ШРИФТА (Всегда выполняется) ---
+            is_modified = current_text != original_text
+            new_color = self._get_translation_color(is_modified, line_data)
+            
+            # Помечаем строку как изменённую в текущей сессии
+            if is_modified:
+                line_data['session_modified'] = True
+            
+            # Обновляем стиль виджета
+            try:
+                if hasattr(edit_widget, 'set_text_color'):
+                    edit_widget.set_text_color(new_color)
+                else:
+                    # fallback: preserve background, border and radius
+                    existing = edit_widget.styleSheet() or ''
+                    import re
+                    m_bg = re.search(r'background-color:\s*([^;]+);', existing)
+                    bg = m_bg.group(1).strip() if m_bg else None
+                    bg_part = f' background-color: {bg};' if bg else ' background-color: transparent;'
+                    
+                    m_border = re.search(r'border:\s*([^;]+);', existing)
+                    border = m_border.group(1).strip() if m_border else 'none'
+                    
+                    m_radius = re.search(r'border-radius:\s*([^;]+);', existing)
+                    radius = m_radius.group(1).strip() if m_radius else '0px'
+                    
+                    edit_widget.setStyleSheet(f"color: {new_color}; font-family: '{self.preview_font_family}'; font-size: {self.preview_font_size}pt; border: {border}; border-radius: {radius}; {bg_part}")
+            except Exception:
+                edit_widget.setStyleSheet(f"color: {new_color}; font-family: '{self.preview_font_family}'; font-size: {self.preview_font_size}pt; background-color: transparent; border: none;")
+
+            # Запускаем таймер синхронизации данных (вне гарда, вызывается один раз)
+            self.on_preview_text_changed(index, current_text)
+
+        except Exception as e:
+            print(f"DEBUG: Error in on_preview_text_modified: {e}")
+
+    def on_preview_line_inserted(self, after_index, move_text, trans_edit_widget,
+                                  orig_row_layout, trans_row_layout,
+                                  meta_row_widget, orig_row_widget, trans_row_widget):
+        """Вставляет новую пустую строку в данные и в UI превью при нажатии Enter."""
+        try:
+            # === ЛОГИРОВАНИЕ ===
+            log_msg = f"[INSERT_START] after_index={after_index} move_text={repr(move_text)[:40]} original_lines_count={len(self.original_lines)}"
+            self._log_to_file(log_msg)
+            
+            if after_index < 0 or after_index >= len(self.original_lines):
+                return
+
+            source_line = self.original_lines[after_index]
+            key = source_line['key']
+            new_index = after_index + 1
+
+            # Текущая (левая) часть текста после разделения — читаем из виджета отправителя
+            try:
+                before_text = trans_edit_widget.toPlainText()
+            except Exception:
+                before_text = self.original_lines[after_index].get('translated_text', '')
+
+            # --- 1. Вставка в модель данных ---
+            new_line_data = {
+                'key': key,
+                'original_text': '',
+                'display_text': '',
+                'translated_text': move_text or '',
+                'original_translated_text': '',
+                'should_translate': True,
+                # помечаем пустой только когда нет текста (и без пробелов)
+                'is_empty': not (bool(move_text) and bool(str(move_text).strip())),
+                'key_all_empty': False,
+                'full_match': '',
+                'is_multiline': False,
+                'display_line_index': 0,
+                'total_display_lines': 1
+            }
+            # Копируем необязательные поля чтобы не сломать остальной код
+            for field in ('file_index', 'entry_start_line'):
+                if field in source_line:
+                    new_line_data[field] = source_line[field]
+
+            # Обновляем исходную запись текущей строки (левая часть)
+            try:
+                self.original_lines[after_index]['translated_text'] = before_text
+                self.original_lines[after_index]['is_empty'] = (before_text == '')
+            except Exception:
+                pass
+
+            # Shift pending_sync_edits: keys >= new_index must be incremented by +1
+            # (must happen BEFORE any on_preview_text_modified calls that queue new edits)
+            try:
+                if getattr(self, 'pending_sync_edits', None):
+                    new_pending = {}
+                    for k, v in list(self.pending_sync_edits.items()):
+                        if k >= new_index:
+                            new_pending[k + 1] = v
+                        else:
+                            new_pending[k] = v
+                    self.pending_sync_edits = new_pending
+            except Exception:
+                pass
+
+            # Обновим цвет/статус текущего виджета (чтобы цвет отражал изменение сразу)
+            try:
+                self.on_preview_text_modified(trans_edit_widget, after_index, self.original_lines[after_index])
+            except Exception:
+                pass
+
+            # Находим реальный "физический" индекс текущей строки в мастер-списке (для мастер-редакторов)
+            # ИСПОЛЬЗУЕМ identity (is), а не ==, чтобы не путать одинаковые пустые строки
+            physical_idx = -1
+            if hasattr(self, 'all_lines_data'):
+                for i, item in enumerate(self.all_lines_data):
+                    if item is source_line:
+                        physical_idx = i
+                        break
+            
+            master_new_index = physical_idx + 1 if physical_idx != -1 else new_index
+
+            # --- 1. Вставка в модель данных ---
+            self.original_lines.insert(new_index, new_line_data)
+
+            # ВАЖНО: Синхронизируем all_lines_data. 
+            if hasattr(self, 'all_lines_data') and self.all_lines_data is not self.original_lines:
+                self.all_lines_data.insert(master_new_index, new_line_data)
+            
+            # === ЛОГИРОВАНИЕ: успешно добавили в модель ===
+            log_msg = f"  [INSERT_MODEL] new_index={new_index} key={key} text={repr(new_line_data.get('translated_text', ''))[:40]} | moved_to_next={repr(move_text)[:40]}"
+            self._log_to_file(log_msg)
+
+            # --- 2. Обновление индексов в существующих виджетах превью ---
+            # Все PreviewTextEdit с index >= new_index нужно сдвинуть на +1
+            # ВНИМАНИЕ: сдвигаем только в колонке перевода (trans_row_widget).
+            # Колонка референса (orig_row_widget) теперь статична и использует part_index.
+            for edit in trans_row_widget.findChildren(PreviewTextEdit):
+                if edit.index >= new_index:
+                    edit.index += 1
+
+            # Сдвигаем также во всех остальных группах (только колонку перевода tw)
+            try:
+                for k, (mw, ow, tw) in self.preview_key_to_group_widget.items():
+                    if k == key:
+                        continue  # эту группу уже обработали выше
+                    for edit in tw.findChildren(PreviewTextEdit):
+                        if edit.index >= new_index:
+                            edit.index += 1
+            except Exception:
+                pass
+
+            # --- 3. Добавляем виджет перевода в превью (без полного перерендера) ---
+            # Референс (orig) колонка остаётся СТАТИЧЕСКОЙ — виджеты не добавляются.
+            
+            # Перевод: редактируемая строка, заполняем её правой частью
+            new_trans = PreviewTextEdit(new_index, move_text or '', read_only=False, parent=self)
+            new_trans.key = key
+            # Новая строка в модели данных, поэтому получаем её part_index
+            new_trans.part_index = new_line_data.get('part_index', 0)
+            
+            # Начальный цвет зависит от того, изменилась ли строка относительно original_translated_text
+            is_new_modified = (new_line_data['translated_text'] != new_line_data.get('original_translated_text', ''))
+            new_trans_color = self._get_translation_color(is_new_modified, new_line_data)
+            new_trans_style = f"color: {new_trans_color}; background-color: transparent; border: none; border-radius: 0px;"
+            new_trans.setStyleSheet(new_trans_style)
+            new_trans._original_style = new_trans_style
+
+            # Подключаем сигналы для нового виджета
+            new_trans.text_changed.connect(
+                lambda *args, te=new_trans:
+                self.on_preview_text_modified(te, te.index, self.original_lines[te.index])
+            )
+            new_trans.line_inserted.connect(
+                lambda ins_idx, move_text, te=new_trans,
+                       orl=orig_row_layout, trl=trans_row_layout,
+                       mw=meta_row_widget, orw=orig_row_widget, trw=trans_row_widget:
+                self.on_preview_line_inserted(ins_idx, move_text, te, orl, trl, mw, orw, trw)
+            )
+            new_trans.line_deleted.connect(lambda del_idx, merge_text, te=new_trans: self.on_preview_line_deleted(del_idx, te, merge_text))
+
+            try:
+                self.on_preview_text_modified(new_trans, new_index, new_line_data)
+            except Exception:
+                pass
+
+            # trans — находим позицию после trans_edit_widget
+            trans_insert_pos = -1
+            for i in range(trans_row_layout.count()):
+                item = trans_row_layout.itemAt(i)
+                if item and item.widget() is trans_edit_widget:
+                    trans_insert_pos = i + 1
+                    break
+            if trans_insert_pos == -1:
+                trans_insert_pos = trans_row_layout.count() - 1
+
+            stretch_item_t = trans_row_layout.takeAt(trans_row_layout.count() - 1)
+            trans_row_layout.insertWidget(trans_insert_pos, new_trans, 0, Qt.AlignTop)
+            trans_row_layout.addStretch(1)
+
+            # row_siblings для нового виджета перевода
+            siblings_tuple = (meta_row_widget, orig_row_widget, trans_row_widget)
+            new_trans.row_siblings = siblings_tuple
+
+            # --- Обновляем part_index для всех виджетов в этой группе (после вставки)
+            try:
+                indices = [i for i, ld in enumerate(self.original_lines) if ld['key'] == key]
+                if key in self.preview_key_to_group_widget:
+                    _, ow, tw = self.preview_key_to_group_widget[key]
+                    for col_w in (ow, tw):
+                        for edit in col_w.findChildren(PreviewTextEdit):
+                            idx_val = getattr(edit, 'index', None)
+                            if idx_val is None:
+                                continue
+                            try:
+                                edit.part_index = indices.index(idx_val)
+                            except ValueError:
+                                # widget may belong to another group instance; ignore
+                                pass
+            except Exception:
+                pass
+
+            # Обновим part_index в модели original_lines для этой группы
+            try:
+                for pos, idx in enumerate([i for i, ld in enumerate(self.original_lines) if ld['key'] == key]):
+                    try:
+                        self.original_lines[idx]['part_index'] = pos
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+
+            # --- 4. Обновляем idx_label текущей группы ---
+            self._update_group_header_label(key)
+
+            # --- 5. Обновляем idx_label всех ПОСЛЕДУЮЩИХ групп ---
+            self._renumber_groups_after(new_index)
+
+            # --- 6. Синхронизируем верхний редактор (translated_text_all) ---
+            # ВАЖНО: Устанавливаем флаг, чтобы apply_filters() не удалил новую пустую строку
+            self.suppress_empty_filter_for_indices = {new_index}
+            log_msg = f"  [INSERT_SUPPRESS_FILTER] index={new_index}"
+            self._log_to_file(log_msg)
+            self._insert_line_in_upper_editor(new_index, trans_text=move_text)
+            
+            # === ЛОГИРОВАНИЕ: завершение вставки ===
+            log_msg = f"[INSERT_END] new_index={new_index} completed_successfully | original_lines_count={len(self.original_lines)}"
+            self._log_to_file(log_msg)
+
+            # --- 7. Обновляем общую статистику и счетчики ---
+            self.update_stats()
+            self.set_modified(True)
+
+            # --- 8. Принудительно обновляем высоту блока ---
+            new_trans.adjust_height()
+
+            # --- 9. Фокус на новое поле ---
+            try:
+                new_trans.setFocus()
+            except Exception:
+                pass
+
+        except Exception as e:
+            import traceback
+            print(f"ERROR in on_preview_line_inserted: {e}")
+            traceback.print_exc()
+
+    # ─── Вспомогательные методы для вставки строки ─────────────────────────────
+
+    def _update_group_header_label(self, key):
+        """Обновляет метку #X-Y в meta_row_widget для заданного ключа по текущим данным."""
+        try:
+            map_ = getattr(self, 'preview_key_to_group_widget', {})
+            if key not in map_:
+                return
+            meta_w, orig_w, trans_w = map_[key]
+
+            # Собираем все индексы этого ключа из original_lines
+            indices = [i for i, ld in enumerate(self.original_lines) if ld['key'] == key]
+            if not indices:
+                return
+
+            first_i = indices[0]
+            last_i = indices[-1]
+            if first_i == last_i:
+                label_text = f"#{first_i + 1}"
+            else:
+                label_text = f"#{first_i + 1}-{last_i + 1}"
+
+            # Находим QLabel (первый дочерний) в meta_w
+            from PyQt5.QtWidgets import QLabel
+            for child in meta_w.findChildren(QLabel):
+                if child.text().startswith('<span') and '#' in child.text():
+                    current_key_fragment = key[:30]
+                    child.setText(
+                        f"<span style='color: #cccccc; font-weight: bold;'>{label_text}</span> "
+                        f"<span style='color: #8f8f8f; font-size: 12px;'>{key}</span>"
+                    )
+                    break
+        except Exception as e:
+            print(f"DEBUG _update_group_header_label: {e}")
+
+    def _renumber_groups_after(self, after_index):
+        """Обновляет #X-Y метки всех групп, чьи индексы >= after_index (сдвиг +1)."""
+        try:
+            map_ = getattr(self, 'preview_key_to_group_widget', {})
+            from PyQt5.QtWidgets import QLabel
+
+            for key, (meta_w, orig_w, trans_w) in map_.items():
+                # Собираем индексы этой группы
+                indices = [i for i, ld in enumerate(self.original_lines) if ld['key'] == key]
+                if not indices:
+                    continue
+                # Если группа затронута (хотя бы один индекс >= after_index), перерисовываем её метку
+                if indices[-1] < after_index:
+                    continue  # группа полностью ДО вставленной строки
+
+                first_i = indices[0]
+                last_i = indices[-1]
+                if first_i == last_i:
+                    label_text = f"#{first_i + 1}"
+                else:
+                    label_text = f"#{first_i + 1}-{last_i + 1}"
+
+                for child in meta_w.findChildren(QLabel):
+                    if child.text().startswith('<span') and '#' in child.text():
+                        child.setText(
+                            f"<span style='color: #cccccc; font-weight: bold;'>{label_text}</span> "
+                            f"<span style='color: #8f8f8f; font-size: 12px;'>{key}</span>"
+                        )
+                        break
+        except Exception as e:
+            print(f"DEBUG _renumber_groups_after: {e}")
+
+    def _sync_group_reference_widgets(self, key):
+        """Обновляет текст во всех виджетах референса для заданного ключа."""
+        try:
+            if key not in self.preview_key_to_group_widget:
+                return
+
+            # Получаем референс-данные для этого ключа
+            file_path = getattr(self, 'current_file_path', '') or ''
+            miz_path = getattr(self, 'current_miz_path', '') or ''
+            is_cmp = miz_path.lower().endswith('.cmp') or file_path.lower().endswith('.cmp')
+            
+            ref_parts = []
+            
+            if is_cmp:
+                # Для .cmp: используем замороженные данные (cmp_reference_data)
+                ref_locale = getattr(self, 'reference_locale', 'DEFAULT')
+                
+                # Определяем базовый ключ
+                base_key = key
+                k_parts = key.rsplit('_', 1)
+                if len(k_parts) > 1 and k_parts[1].isupper() and len(k_parts[1]) == 2:
+                    base_key = k_parts[0]
+                
+                target_ref_key = base_key if ref_locale == "DEFAULT" else f"{base_key}_{ref_locale}"
+                
+                # Ищем в замороженном словаре
+                frozen = getattr(self, 'cmp_reference_data', {})
+                ref_parts = frozen.get(target_ref_key, [])
+                
+                # Фоллбэк на DEFAULT
+                if not ref_parts and ref_locale != "DEFAULT":
+                    ref_parts = frozen.get(base_key, [])
+            elif getattr(self, 'current_miz_path', None) and getattr(self, 'reference_data', None):
+                ref_parts = self.reference_data.get(key, [])
+
+            _, ow, _ = self.preview_key_to_group_widget[key]
+            
+            # Находим все PreviewTextEdit в колонке референса для этой группы
+            # Сортируем их по part_index, чтобы правильно распределить текст
+            from widgets import PreviewTextEdit
+            orig_edits = sorted(ow.findChildren(PreviewTextEdit), key=lambda e: getattr(e, 'part_index', 0))
+            num_edits = len(orig_edits)
+            
+            for i, edit in enumerate(orig_edits):
+                p_idx = getattr(edit, 'part_index', 0)
+                
+                new_ref_text = ''
+                if ref_parts:
+                    # Агрегация: последний виджет в группе превью забирает всё оставшееся
+                    if i == num_edits - 1:
+                        new_ref_text = "\n".join(ref_parts[p_idx:])
+                    else:
+                        new_ref_text = ref_parts[p_idx] if p_idx < len(ref_parts) else ''
+                else:
+                    # Fallback к display_text если данных нет
+                    if getattr(self, 'current_miz_path', None):
+                        if 0 <= edit.index < len(self.original_lines):
+                            new_ref_text = self.original_lines[edit.index].get('display_text', '')
+
+                edit.setPlainText(new_ref_text)
+                edit.adjust_height()
+        except Exception as e:
+            print(f"DEBUG _sync_group_reference_widgets error: {e}")
+
+    def _insert_line_in_upper_editor(self, new_index, trans_text=None):
+        """Вставляет пустую строку в верхние редакторы (оригинал и перевод) на позицию new_index.
+        Если `trans_text` задан — вставляет его в `translated_text_all` для новой строки."""
+        try:
+            log_msg = f"    [UPPER_INSERT_START] new_index={new_index} trans_text={repr(trans_text)[:40] if trans_text else None}"
+            self._log_to_file(log_msg)
+            
+            prev_flag = getattr(self, 'prevent_text_changed', False)
+            self.prevent_text_changed = True
+
+            try:
+                # Синхронизируем оба окна: и оригинал, и перевод
+                for attr in ('original_text_all', 'translated_text_all'):
+                    editor = getattr(self, attr, None)
+                    if not editor:
+                        continue
+                    
+                    editor_name = 'original' if attr == 'original_text_all' else 'translated'
+                    log_msg = f"      [UPPER_INSERT] editor={editor_name} index={new_index}"
+                    self._log_to_file(log_msg)
+
+                    # Если у редактора есть лимит строк для нумерации, увеличиваем его
+                    if hasattr(editor, 'max_line_count') and editor.max_line_count is not None:
+                        editor.max_line_count += 1
+
+                    doc = editor.document()
+                    block_count = doc.blockCount()
+
+                    # new_index — позиция новой строки (0-based)
+                    insert_at = min(new_index, block_count)
+
+                    cursor = editor.textCursor()
+
+                    # Position cursor at the END of the previous block so that
+                    # insertBlock() creates a clean empty block without
+                    # contaminating the next block's text.
+                    if insert_at > 0:
+                        prev_block = doc.findBlockByNumber(insert_at - 1)
+                        if prev_block.isValid():
+                            cursor.setPosition(prev_block.position() + prev_block.length() - 1)
+                        else:
+                            cursor.movePosition(cursor.End)
+                    else:
+                        # Inserting at position 0 — place cursor at start
+                        cursor.setPosition(0)
+
+                    cursor.beginEditBlock()
+                    cursor.insertBlock()
+                    # Cursor is now at the start of the newly inserted empty block
+                    
+                    if attr == 'translated_text_all' and trans_text:
+                        try:
+                            cursor.insertText(trans_text)
+                        except Exception:
+                            pass
+                    elif attr == 'original_text_all':
+                        # Если включено "Показать ключи", добавляем ключ и для новой вставленной строки
+                        try:
+                            if hasattr(self, 'show_keys_btn') and self.show_keys_btn.isChecked():
+                                if 0 <= new_index < len(self.original_lines):
+                                    line_key = self.original_lines[new_index].get('key', '')
+                                    if line_key:
+                                        cursor.insertText(f"[{line_key}] ")
+                        except Exception:
+                            pass
+
+                    cursor.endEditBlock()
+            finally:
+                self.prevent_text_changed = prev_flag
+
+        except Exception as e:
+            print(f"DEBUG _insert_line_in_upper_editor: {e}")
+
+    def _delete_line_from_upper_editor(self, index):
+        """Удаляет строку с указанным индексом из верхних редакторов оригинала и перевода."""
+        log_msg = f"    [UPPER_DELETE_START] index={index}"
+        self._log_to_file(log_msg)
+        
+        prev_flag = getattr(self, 'prevent_text_changed', False)
+        self.prevent_text_changed = True
+        try:
+            editors = []
+            if hasattr(self, 'original_text_all'):
+                editors.append(('original', self.original_text_all))
+            if hasattr(self, 'translated_text_all'):
+                editors.append(('translated', self.translated_text_all))
+            
+            for editor_name, editor in editors:
+                log_msg = f"      [UPPER_DELETE] editor={editor_name} index={index}"
+                self._log_to_file(log_msg)
+                
+                doc = editor.document()
+                block = doc.findBlockByNumber(index)
+                if block.isValid():
+                    cursor = QTextCursor(block)
+                    cursor.beginEditBlock()
+                    
+                    # Если это не последний блок, удаляем его и идущий за ним \n
+                    if block.next().isValid():
+                        cursor.setPosition(block.position())
+                        cursor.setPosition(block.next().position(), QTextCursor.KeepAnchor)
+                    else:
+                        # Это последний блок. Пытаемся захватить \n перед ним
+                        if block.previous().isValid():
+                            # Становимся в конец ПРЕДЫДУЩЕГО блока (перед \n последнего блока)
+                            cursor.setPosition(block.previous().position() + block.previous().length() - 1)
+                            # Выделяем до конца документа (который и есть наш последний блок)
+                            cursor.movePosition(QTextCursor.End, QTextCursor.KeepAnchor)
+                        else:
+                            # Единственный блок в документе
+                            cursor.select(QTextCursor.BlockUnderCursor)
+                    
+                    cursor.removeSelectedText()
+                    cursor.endEditBlock()
+        finally:
+            self.prevent_text_changed = prev_flag
+
+    def on_preview_line_deleted(self, index, trans_edit_widget, merge_text=''):
+        """Удаляет строку из данных и UI при нажатии Backspace в пустом поле.
+        Если `merge_text` задан — объединяет текущую строку с предыдущей перед удалением."""
+        try:
+            # === ЛОГИРОВАНИЕ ===
+            log_msg = f"[DELETE_START] index={index} merge_text={repr(merge_text)[:40]} original_lines_count={len(self.original_lines)}"
+            self._log_to_file(log_msg)
+            
+            if index < 0 or index >= len(self.original_lines):
+                return
+
+            source_line = self.original_lines[index]
+            key = source_line['key']
+
+            # --- Защита: нельзя удалить последнюю строку в группе (ключе) ---
+            group_lines = [line for line in self.original_lines if line['key'] == key]
+            if len(group_lines) <= 1:
+                self.statusBar().showMessage(get_translation(self.current_language, 'status_cannot_delete_last'), 3000)
+                return
+
+            # --- Если требуется объединение с предыдущей строкой ---
+            merge_cursor_pos = -1  # cursor position at merge join point
+            if merge_text:
+                prev_index = index - 1
+                if prev_index >= 0 and self.original_lines[prev_index]['key'] == key:
+                    try:
+                        prev_text = self.original_lines[prev_index].get('translated_text', '') or ''
+                        merge_cursor_pos = len(prev_text)
+                        new_prev = prev_text + merge_text
+                        self.original_lines[prev_index]['translated_text'] = new_prev
+                        
+                        # === ЛОГИРОВАНИЕ: успешное объединение ===
+                        log_msg = f"  [MERGE] prev_index={prev_index} | prev={repr(prev_text)[:30]} + current={repr(merge_text)[:30]} = {repr(new_prev)[:50]}"
+                        self._log_to_file(log_msg)
+                        # Обновляем виджет предыдущей строки в превью
+                        try:
+                            if key in self.preview_key_to_group_widget:
+                                _, ow, tw = self.preview_key_to_group_widget[key]
+                                for edit in tw.findChildren(PreviewTextEdit):
+                                    if getattr(edit, 'index', None) == prev_index:
+                                        edit.blockSignals(True)
+                                        edit.setPlainText(new_prev)
+                                        edit.blockSignals(False)
+                                        edit.adjust_height()
+                                        # Обновляем цвет сразу (новый текст отличается от original_translated_text)
+                                        try:
+                                            self.on_preview_text_modified(edit, prev_index, self.original_lines[prev_index])
+                                        except Exception:
+                                            pass
+                                        # И буферно синхронизируем данные в основной редактор
+                                        try:
+                                            self.on_preview_text_changed(prev_index, new_prev)
+                                        except Exception:
+                                            pass
+                                        break
+                        except Exception:
+                            pass
+                    except Exception:
+                        pass
+
+            # --- 1. Удаление из модели данных ---
+            # Находим физический индекс в all_lines_data через identity
+            physical_idx = -1
+            if hasattr(self, 'all_lines_data'):
+                for i, item in enumerate(self.all_lines_data):
+                    if item is source_line:
+                        physical_idx = i
+                        break
+
+            # === ЛОГИРОВАНИЕ: удаляем из модели ===
+            log_msg = f"  [DELETE_MODEL] index={index} physical_idx={physical_idx} text_before_delete={repr(source_line.get('translated_text', ''))[:40]}"
+            self._log_to_file(log_msg)
+            
+            # Удаляем из обоих списков
+            self.original_lines.pop(index)
+            if physical_idx != -1 and self.all_lines_data is not self.original_lines:
+                self.all_lines_data.pop(physical_idx)
+            
+            # === ЛОГИРОВАНИЕ: успешное удаление ===
+            log_msg = f"  [DELETE_MODEL_DONE] original_lines_count_after={len(self.original_lines)}"
+            self._log_to_file(log_msg)
+
+            # Сдвигаем pending_sync_edits: удаляем текущий индекс и сдвигаем большие на -1
+            try:
+                if getattr(self, 'pending_sync_edits', None):
+                    new_pending = {}
+                    for k, v in list(self.pending_sync_edits.items()):
+                        if k == index:
+                            continue
+                        if k > index:
+                            new_pending[k - 1] = v
+                        else:
+                            new_pending[k] = v
+                    self.pending_sync_edits = new_pending
+            except Exception:
+                pass
+
+            # --- 2. Обновление индексов в существующих виджетах превью ---
+            # Все PreviewTextEdit с index > deleted_index нужно сдвинуть на -1 (идем по всем группам)
+            # ВНИМАНИЕ: сдвигаем только в колонках перевода (tw)
+            try:
+                for k, (mw, ow, tw) in self.preview_key_to_group_widget.items():
+                    for edit in tw.findChildren(PreviewTextEdit):
+                        if edit.index > index:
+                            edit.index -= 1
+                # После смещения индексов — пересчитаем part_index для группы ключа в колонке перевода
+                try:
+                    if key in self.preview_key_to_group_widget:
+                        indices = [i for i, ld in enumerate(self.original_lines) if ld['key'] == key]
+                        _, _, tw = self.preview_key_to_group_widget[key]
+                        for edit in tw.findChildren(PreviewTextEdit):
+                            idx_val = getattr(edit, 'index', None)
+                            if idx_val is None:
+                                continue
+                            try:
+                                edit.part_index = indices.index(idx_val)
+                            except ValueError:
+                                pass
+                except Exception:
+                    pass
+            except Exception:
+                pass
+
+            except Exception:
+                pass
+
+            # --- 3. Удаление виджетов из UI превью ---
+            # Находим и удаляем виджет из трансляции и его партнера из оригинала
+            partner_widget = trans_edit_widget.partner
+
+            # Find the previous PreviewTextEdit to focus after deletion
+            focus_target = None
+            try:
+                if key in self.preview_key_to_group_widget:
+                    _, _, tw = self.preview_key_to_group_widget[key]
+                    prev_widgets = [e for e in tw.findChildren(PreviewTextEdit)
+                                   if not e.isReadOnly() and e is not trans_edit_widget]
+                    candidates = [e for e in prev_widgets if e.index < index]
+                    if candidates:
+                        focus_target = max(candidates, key=lambda e: e.index)
+                    elif prev_widgets:
+                        focus_target = min(prev_widgets, key=lambda e: e.index)
+            except Exception:
+                pass
+
+            # Удаляем из layout-ов
+            if trans_edit_widget.row_siblings:
+                _, orig_row_w, trans_row_w = trans_edit_widget.row_siblings
+
+                # НЕ удаляем виджет из колонки референса — он остаётся,
+                # чтобы референс всегда отображался полностью.
+                # Удаляем только из перевода
+                trans_layout = trans_row_w.layout()
+                trans_layout.removeWidget(trans_edit_widget)
+                trans_edit_widget.deleteLater()
+
+                # Принудительно обновляем высоты оставшихся виджетов в группе,
+                # чтобы контейнеры пересчитали свою высоту (и уменьшились если надо)
+                for edit in trans_row_w.findChildren(PreviewTextEdit):
+                    if edit is not trans_edit_widget:
+                        edit.adjust_height()
+                for edit in orig_row_w.findChildren(PreviewTextEdit):
+                    edit.adjust_height()
+
+            # После удаления виджетов — обновим part_index в модели для этого ключа
+            try:
+                for pos, idx in enumerate([i for i, ld in enumerate(self.original_lines) if ld['key'] == key]):
+                    try:
+                        self.original_lines[idx]['part_index'] = pos
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+
+
+
+            # --- 4. Обновляем заголовки ---
+            self._update_group_header_label(key)
+            self._renumber_groups_after(index)
+
+            # --- 5. Синхронизируем верхние редакторы ---
+            log_msg = f"  [DELETE_UPPER_EDITOR] index={index}"
+            self._log_to_file(log_msg)
+            self._delete_line_from_upper_editor(index)
+
+            # === ЛОГИРОВАНИЕ: завершение удаления ===
+            log_msg = f"[DELETE_END] index={index} completed_successfully | original_lines_count={len(self.original_lines)}"
+            self._log_to_file(log_msg)
+
+            # --- 6. Restore focus to previous widget ---
+            if focus_target is not None:
+                try:
+                    focus_target.setFocus()
+                    cursor = focus_target.textCursor()
+                    if merge_cursor_pos >= 0:
+                        cursor.setPosition(merge_cursor_pos)
+                    else:
+                        cursor.movePosition(cursor.End)
+                    focus_target.setTextCursor(cursor)
+                except Exception:
+                    pass
+
+            self.set_modified(True)
+            self.update_stats()
+            self.statusBar().showMessage(get_translation(self.current_language, 'status_line_deleted'), 2000)
+
+        except Exception as e:
+            print(f"DEBUG: Error in on_preview_line_deleted: {e}")
+            log_msg = f"[DELETE_ERROR] {str(e)}"
+            self._log_to_file(log_msg)
+
+    def quick_play_audio(self, key):
+        """Проигрывает аудио в фоне без открытия диалога"""
+        try:
+            # Если открыто окно плеера, уведомляем его о захвате миксера
+            if self.audio_player and self.audio_player.isVisible():
+                self.audio_player.on_mixer_takeover()
+                
+            # Используем правильный метод извлечения из архива
+            path = self.miz_resource_manager.extract_resource_to_temp(self.current_miz_path, key)
+            if path and os.path.exists(path):
+                pygame.mixer.music.load(path)
+                # Применяем сохраненную громкость
+                pygame.mixer.music.set_volume(self.audio_volume / 100.0)
+                pygame.mixer.music.play()
+                self.statusBar().showMessage(f"Playing: {os.path.basename(path)}")
+            else:
+                self.statusBar().showMessage(f"Audio not found: {key}")
+        except Exception as e:
+            print(f"DEBUG: Quick Play Error: {e}")
+
+    def stop_quick_audio(self):
+        """Останавливает фоновое воспроизведение"""
+        try:
+            pygame.mixer.music.stop()
+            self.statusBar().showMessage("Audio stopped")
+        except:
+            pass
+        # Сбрасываем состояние быстрой игры и обновляем иконку кнопки, если она есть
+        try:
+            if self.quick_playing_key and self.quick_playing_key in self.quick_audio_buttons:
+                btn = self.quick_audio_buttons.get(self.quick_playing_key)
+                if btn:
+                    btn.setText("▶")
+                    try:
+                        btn.setStyleSheet(self.preview_play_style)
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+        self.quick_playing_key = None
+        self.quick_paused = False
+
+    def handle_audio_replacement(self, key, new_path):
+        """Заменяет аудиофайл для указанного ключа (DictKey или ResKey)."""
+        if not new_path or not os.path.exists(new_path):
+            return
+
+        try:
+            # Обновляем путь к последней папке аудио
+            self.last_audio_folder = os.path.dirname(new_path)
+            # Сохраняем настройки
+            try:
+                self.save_settings(update_preview=False, update_ui=False)
+            except Exception:
+                try:
+                    self.save_settings(update_ui=False)
+                except Exception:
+                    pass
+
+            # 1. Заменяем сам файл через менеджер ресурсов
+            result = self.miz_resource_manager.replace_audio(key, new_path)
+            
+            if result:
+                self.set_modified(True)
+                
+                # 2. Разрешаем ResKey (плейлист оперирует им)
+                res_key = self.miz_resource_manager.resolve_to_res_key(key)
+
+                # [FIX] Сбрасываем кэш длительности для этого ключа и ResKey
+                if key in self.shared_duration_cache:
+                    del self.shared_duration_cache[key]
+                if res_key in self.shared_duration_cache:
+                    del self.shared_duration_cache[res_key]
+                
+                # 3. Находим все связанные ключи (ResKey + все DictKeys) для обновления UI
+                target_keys = {res_key}
+                for dk, rk in self.miz_resource_manager.subtitle_to_reskey.items():
+                    if rk == res_key:
+                        target_keys.add(dk)
+                        if dk in self.shared_duration_cache:
+                            del self.shared_duration_cache[dk]
+                
+                # Обновляем название файла во всех найденных лейблах
+                for tkey in target_keys:
+                    labels = self.audio_labels_map.get(tkey, [])
+                    if labels:
+                        for label in labels:
+                            label.setText(result)
+                        self._update_audio_label_style(tkey)
+
+                # 4. Обновляем плеер с новым файлом (если он открыт)
+                if self.audio_player is not None:
+                    try:
+                        # ВАЖНО: используем оригинальный key, чтобы сохранить рамку в превью (если это DictKey)
+                        self.audio_player.update_audio(new_path, result, key, self.last_audio_folder)
+                        self.audio_player.update_playlist_item(res_key)
+                    except Exception as e:
+                        print(f"DEBUG: Error updating audio player UI: {e}")
+
+                # 5. Обновляем только группу превью, связанную с этим ключом
+                try:
+                    updated = self.update_preview_for_key(key)
+                except Exception:
+                    updated = False
+
+                if not updated:
+                    try:
+                        if hasattr(self, 'schedule_preview_update'):
+                            self.schedule_preview_update(200)
+                    except Exception: pass
+        except Exception as e:
+            error_msg = f"Error replacing audio: {str(e)}"
+            ErrorLogger.log_error("AUDIO_REPLACE", error_msg)
+            try:
+                self.show_custom_dialog("Error", error_msg, "error")
+            except Exception:
+                pass
+
+    def quick_toggle_audio(self, key, btn):
+        """Toggle play/pause for a quick preview button linked to `key`."""
+        try:
+            # [FIX] Снимаем желтую подсветку при быстром прослушивании любого файла
+            self.clear_audio_highlight()
+            # Если уже играет этот же ключ
+            if self.quick_playing_key == key:
+                # Если играет прямо сейчас -> пауза
+                if pygame.mixer.music.get_busy() and not self.quick_paused:
+                    try:
+                        pygame.mixer.music.pause()
+                        self.quick_paused = True
+                        btn.setText("▶")
+                        try:
+                            btn.setStyleSheet(self.preview_play_style)
+                        except Exception:
+                            pass
+                    except Exception:
+                        pass
+                elif self.quick_paused:
+                    try:
+                        pygame.mixer.music.unpause()
+                        self.quick_paused = False
+                        btn.setText("\u23F8\uFE0E")
+                        try:
+                            btn.setStyleSheet(self.preview_pause_style)
+                        except Exception:
+                            pass
+                    except Exception:
+                        pass
+                else:
+                    # Не играет, запустим заново
+                    # Уведомляем плеер
+                    if self.audio_player and self.audio_player.isVisible():
+                        self.audio_player.on_mixer_takeover()
+
+                    path = self.miz_resource_manager.extract_resource_to_temp(self.current_miz_path, key)
+                    if path and os.path.exists(path):
+                        try:
+                            pygame.mixer.music.load(path)
+                            pygame.mixer.music.set_volume(self.audio_volume / 100.0)
+                            pygame.mixer.music.play()
+                            self.quick_paused = False
+                            btn.setText("\u23F8\uFE0E")
+                            try:
+                                btn.setStyleSheet(self.preview_pause_style)
+                            except Exception:
+                                pass
+                        except Exception as e:
+                            print(f"DEBUG: Quick restart error: {e}")
+            else:
+                # Останавливаем предыдущую (если была)
+                if self.quick_playing_key and self.quick_playing_key in self.quick_audio_buttons:
+                    prev_btn = self.quick_audio_buttons.get(self.quick_playing_key)
+                    if prev_btn:
+                        prev_btn.setText("▶")
+
+                # Попробуем извлечь и проиграть
+                # Уведомляем плеер
+                if self.audio_player and self.audio_player.isVisible():
+                    self.audio_player.on_mixer_takeover()
+
+                path = self.miz_resource_manager.extract_resource_to_temp(self.current_miz_path, key)
+                if path and os.path.exists(path):
+                    try:
+                        pygame.mixer.music.load(path)
+                        pygame.mixer.music.set_volume(self.audio_volume / 100.0)
+                        pygame.mixer.music.play()
+                        self.statusBar().showMessage(f"Playing: {os.path.basename(path)}")
+                        btn.setText("\u23F8\uFE0E")
+                        try:
+                            btn.setStyleSheet(self.preview_pause_style)
+                        except Exception:
+                            pass
+                        self.quick_playing_key = key
+                        self.quick_paused = False
+                        self.quick_audio_buttons[key] = btn
+                    except Exception as e:
+                        print(f"DEBUG: Quick Toggle Play Error: {e}")
+                else:
+                    self.statusBar().showMessage(f"Audio not found: {key}")
+        except Exception as e:
+            print(f"DEBUG: quick_toggle_audio error: {e}")
+
+    def set_audio_volume(self, value, sender=None):
+        """Централизованное управление громкостью для всех компонентов"""
+        self.audio_volume = value
+        pygame.mixer.music.set_volume(value / 100.0)
+        
+        # 1. Синхронизируем главный плеер (AudioPlayerDialog)
+        if self.audio_player and self.audio_player != sender:
+            if hasattr(self.audio_player, 'volume_slider'):
+                self.audio_player.volume_slider.blockSignals(True)
+                self.audio_player.volume_slider.setValue(value)
+                self.audio_player.volume_slider.blockSignals(False)
+
+        # 2. Синхронизируем плеер в файл-менеджере
+        if hasattr(self, 'files_manager_window') and self.files_manager_window:
+             if hasattr(self.files_manager_window, 'file_manager_widget') and self.files_manager_window.file_manager_widget != sender:
+                 fmw = self.files_manager_window.file_manager_widget
+                 if hasattr(fmw, '_ap_volume_slider'):
+                     fmw._ap_volume_slider.blockSignals(True)
+                     fmw._ap_volume_slider.setValue(value)
+                     fmw._ap_volume_slider.blockSignals(False)
+
+        # 3. Синхронизируем TTS диалог (volume_slider)
+        if hasattr(self, 'current_tts_dialog') and self.current_tts_dialog and self.current_tts_dialog != sender:
+            if hasattr(self.current_tts_dialog, 'volume_slider'):
+                self.current_tts_dialog.volume_slider.blockSignals(True)
+                self.current_tts_dialog.volume_slider.setValue(value)
+                self.current_tts_dialog.volume_slider.blockSignals(False)
+                     
+        # 4. Сохраняем настройки
+        self.save_settings(update_ui=False)
+
+    def set_active_audio_key(self, key):
+        """Устанавливает активный аудио-ключ и обновляет рамки в предпросмотре"""
+        old_key = self.active_audio_key
+        
+        # [NEW] Резолвим ResKey обратно в DictKey, если это возможно, для подсветки в редакторе
+        if key and not key.startswith("DictKey_") and hasattr(self, 'miz_resource_manager'):
+            if hasattr(self.miz_resource_manager, 'subtitle_to_reskey'):
+                for dk, rk in self.miz_resource_manager.subtitle_to_reskey.items():
+                    if rk == key:
+                        key = dk
+                        break
+
+        self.active_audio_key = key
+        
+        # Обновляем старые виджеты (убираем рамку)
+        if old_key and old_key in self.audio_labels_map:
+            for lbl in self.audio_labels_map[old_key]:
+                self._update_audio_label_style(old_key, forced_label=lbl)
+            
+        # Обновляем новые виджеты (добавляем рамку)
+        if key and key in self.audio_labels_map:
+            for lbl in self.audio_labels_map[key]:
+                self._update_audio_label_style(key, forced_label=lbl)
+
+    def _update_audio_label_style(self, key, forced_label=None):
+        """Вспомогательный метод для динамического обновления стиля метки аудио"""
+        if key not in self.audio_labels_map:
+            return
+            
+        if key not in self.audio_labels_map:
+            return
+            
+        audio_info = self.miz_resource_manager.get_audio_for_key(key)
+        if not audio_info:
+            return
+            
+        _, is_current_locale = audio_info
+        
+        # Определяем цвет
+        if self.miz_resource_manager.is_audio_replaced(key):
+            audio_color = getattr(self, 'theme_text_modified', '#ff6666') # Красный для замененных (несохраненных)
+        elif is_current_locale:
+            audio_color = getattr(self, 'theme_text_saved', '#2ecc71') # Зеленый для текущей локали
+        else:
+            audio_color = '#cccccc' # Тултипы и отсутствующие файлы теперь светлее
+            
+        # [NEW] Учитываем состояние "найденного" файла (оранжевый фон)
+        is_highlighted = (key == getattr(self, 'highlighted_audio_key', None))
+        
+        # Определяем рамку и фон
+        if is_highlighted:
+            audio_color = "#000000" # Черный текст на оранжевом фоне
+            bg_color = "#ff9900"
+            border_style = "border: 1px solid #ff9900; border-radius: 4px;"
+            text_decor = "none"
+        else:
+            bg_color = "transparent"
+            text_decor = "underline"
+            border_style = "border: 1px solid #ff9900; border-radius: 4px;" if key == self.active_audio_key else "border: 1px solid transparent;"
+        
+        style = f'''
+            QLabel {{
+                color: {audio_color};
+                font-size: 12px;
+                text-decoration: {text_decor};
+                background-color: {bg_color};
+                {border_style}
+                padding: 2px;
+            }}
+            QLabel:hover {{
+                background-color: {"#ff9900" if is_highlighted else "#3d4256"};
+                border-radius: 2px;
+            }}
+        '''
+        
+        if forced_label:
+            try:
+                forced_label.setStyleSheet(style)
+            except Exception:
+                pass
+        else:
+            for label in list(self.audio_labels_map[key]):
+                try:
+                    label.setStyleSheet(style)
+                except Exception:
+                    pass
+
+    def update_preview_for_key(self, key):
+        """
+        Точечно обновляет виджеты в превью для конкретного ключа.
+        Позволяет избежать перерисовки всего списка при замене аудио.
+        """
+        if not key:
+            return
+            
+        try:
+            # 1. Обновляем стиль текста/лейбла аудио
+            self._update_audio_label_style(key)
+            
+            # 2. Обновляем видимость значка предупреждения (⚠)
+            if hasattr(self, 'warning_icons_map') and key in self.warning_icons_map:
+                warning_icon = self.warning_icons_map[key]
+                audio_info = self.miz_resource_manager.get_audio_for_key(key)
+                if audio_info:
+                    _, is_current_locale = audio_info
+                    # Если файл теперь в текущей локали (был заменен), скрываем варнинг
+                    if is_current_locale or self.miz_resource_manager.is_audio_replaced(key):
+                        warning_icon.setVisible(False)
+                    else:
+                        warning_icon.setVisible(True)
+            
+            # 3. Обновляем текст в лейблах
+            if hasattr(self, 'audio_labels_map') and key in self.audio_labels_map:
+                labels = self.audio_labels_map[key]
+                audio_info = self.miz_resource_manager.get_audio_for_key(key)
+                if audio_info:
+                    for label in labels:
+                        label.setText(audio_info[0])
+
+            # 4. Пересчитываем высоты (если нужно)
+            if hasattr(self, 'preview_key_to_group_widget') and key in self.preview_key_to_group_widget:
+                widgets = self.preview_key_to_group_widget[key]
+                from widgets import PreviewTextEdit
+                
+                # widgets это кортеж (meta, orig, trans)
+                if isinstance(widgets, (tuple, list)):
+                    for w in widgets[1:]: # orig и trans колонки
+                        edits = w.findChildren(PreviewTextEdit)
+                        for e in edits:
+                            e.on_content_changed()
+
+
+        except Exception as e:
+            tb = traceback.format_exc()
+            ErrorLogger.log_error("PREVIEW_UPDATE_KEY", f"Exception in update_preview_for_key for key={key}: {e}\n{tb}")
+            return False
+        return True
+
+    def on_resources_modified(self):
+        """Вызывается при реальном изменении ресурсов (замена/переименование)."""
+        self.set_modified(True)
+        self.refresh_audio_status()
+
+    def refresh_audio_status(self):
+        """Полное обновление всех аудио-меток и статусов в превью."""
+        if not hasattr(self, 'audio_labels_map'):
+            return
+            
+        for key in list(self.audio_labels_map.keys()):
+            self.update_preview_for_key(key)
+
+    def _check_quick_audio(self):
+        """Проверяет состояние фонового воспроизведения и сбрасывает кнопку по окончании трека."""
+        try:
+            if not getattr(self, 'quick_playing_key', None):
+                return
+
+            busy = False
+            try:
+                busy = pygame.mixer.music.get_busy()
+            except Exception:
+                busy = False
+
+            # Если трек не играет (не busy) и не на паузе => завершился
+            if not busy and not getattr(self, 'quick_paused', False):
+                try:
+                    btn = self.quick_audio_buttons.get(self.quick_playing_key)
+                    if btn:
+                        btn.setText("▶")
+                        try:
+                            btn.setStyleSheet(self.preview_play_style)
+                        except Exception:
+                            pass
+                except Exception:
+                    pass
+                self.quick_playing_key = None
+                self.quick_paused = False
+        except Exception:
+            pass
+    def update_preview_for_indices(self, indices):
+        """Обновляет группы предпросмотра, которые содержат хотя бы один индекс из `indices`.
+        Возвращает True если были найдены и обновлены группы, иначе False.
+        """
+        try:
+            from widgets import PreviewTextEdit
+            updated = False
+            if not hasattr(self, 'preview_layout') or self.preview_layout is None:
+                return False
+
+            # Проходим по всем группам в layout и ищем в них PreviewTextEdit с нужными индексами
+            count = self.preview_layout.count()
+            for i in range(count):
+                item = self.preview_layout.itemAt(i)
+                if not item:
+                    continue
+                group_widget = item.widget()
+                if not group_widget:
+                    continue
+
+                try:
+                    edits = group_widget.findChildren(PreviewTextEdit)
+                except Exception:
+                    edits = []
+
+                group_matches = False
+                for e in edits:
+                    try:
+                        if e.index in indices:
+                            group_matches = True
+                            break
+                    except Exception:
+                        continue
+
+                if group_matches:
+                    # Обновляем все редактируемые поля в группе
+                    # Блокируем синхронизацию из превью в главный редактор
+                    try:
+                        prev_flag = getattr(self, 'prevent_text_changed', False)
+                        self.prevent_text_changed = True
+                    except Exception:
+                        prev_flag = False
+
+                    for e in edits:
+                        try:
+                            # Обновляем текст в превью из текущих данных буфера
+                            try:
+                                idx = getattr(e, 'index', None)
+                                if idx is not None and 0 <= idx < len(self.original_lines):
+                                    desired = self.original_lines[idx].get('translated_text', '') or ''
+                                    # Обновляем ТОЛЬКО редактируемые поля перевода
+                                    try:
+                                        if not e.isReadOnly():
+                                            if e.toPlainText() != desired:
+                                                e.setPlainText(desired)
+                                    except Exception:
+                                        # Если метод отсутствует — безопасный fallback: обновляем
+                                        if e.toPlainText() != desired:
+                                            e.setPlainText(desired)
+                            except Exception:
+                                pass
+
+                            # Подстраиваем высоту/геометрию
+                            e.adjust_height()
+                        except Exception:
+                            try:
+                                e.updateGeometry()
+                            except Exception:
+                                pass
+
+                    # Восстанавливаем флаг
+                    try:
+                        self.prevent_text_changed = prev_flag
+                    except Exception:
+                        pass
+
+                    try:
+                        group_widget.updateGeometry()
+                        group_widget.update()
+                    except Exception:
+                        pass
+
+                    updated = True
+
+            if updated and hasattr(self, 'preview_content'):
+                try:
+                    self.preview_content.updateGeometry()
+                    self.preview_content.update()
+                except Exception:
+                    pass
+
+            return updated
+        except Exception:
+            return False
+
+    def closeEvent(self, event):
+        """Проверка несохраненных изменений перед закрытием"""
+        try:
+            if getattr(self, 'has_unsaved_changes', False):
+                if not self.show_exit_confirmation_dialog():
+                    event.ignore()
+                    return
+            
+            self.save_settings()
+        except Exception as e:
+            ErrorLogger.log_error("APP_CLOSE", f"Ошибка при закрытии программы: {e}")
+        event.accept()
+
+# [CUSTOM_DIALOG]
+
+
+# [MAIN_FUNCTION]
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+    app.setStyle('Fusion')
+    
+    # Глобальная иконка приложения — наследуется всеми окнами,
+    # даже после setWindowFlags, который пересоздаёт нативное окно
+    _app_icon_path = resource_path("DSCTT.ico")
+    if os.path.exists(_app_icon_path):
+        app.setWindowIcon(QIcon(_app_icon_path))
+    
+    server_name = "DCSTranslatorTool_SingleInstanceServer"
+    
+    # Пытаемся определить язык из настроек ПЕРЕД показом любых диалогов
+    sys_lang = 'ru'
+    if getattr(sys, 'frozen', False):
+        base_dir = os.path.dirname(sys.executable)
+    else:
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+    settings_path = os.path.join(base_dir, "translation_tool_settings.json")
+    
+    if os.path.exists(settings_path):
+        try:
+            with open(settings_path, 'r', encoding='utf-8') as f:
+                settings = json.load(f)
+                sys_lang = settings.get('language', 'ru')
+        except:
+            pass
+            
+    # Проверяем флаг принудительного нового экземпляра
+    force_new = "--new-instance" in sys.argv
+    
+    # Пытаемся подключиться к локальному серверу. Если успешно, значит программа уже открыта
+    socket = QLocalSocket()
+    if not force_new:
+        socket.connectToServer(server_name)
+    
+    if not force_new and socket.waitForConnected(500):
+        # Программа уже открыта!
+        if len(sys.argv) > 1 and not sys.argv[1].startswith("--"):
+            # Если передан аргумент (путь к файлу), отправляем его работающему окну.
+            file_to_open = sys.argv[1].strip('"\'')
+            socket.write(f"FILE:{file_to_open}".encode('utf-8'))
+            socket.waitForBytesWritten(1000)
+            socket.disconnectFromServer()
+            sys.exit(0)
+        else:
+            # Ручной запуск (без файла) - спрашиваем пользователя
+            socket.disconnectFromServer()
+            
+            # Предварительно читаем настройки, чтобы узнать режим многооконности
+            multi_window = False
+            try:
+                if getattr(sys, 'frozen', False):
+                    b_dir = os.path.dirname(sys.executable)
+                else:
+                    b_dir = os.path.dirname(os.path.abspath(__file__))
+                s_file = os.path.join(b_dir, "translation_tool_settings.json")
+                if os.path.exists(s_file):
+                    with open(s_file, 'r', encoding='utf-8') as f:
+                        s_data = json.load(f)
+                        multi_window = s_data.get('multi_window_enabled', False)
+            except:
+                pass
+
+            if not multi_window:
+                # В однооконном режиме просто фокусируемся на существующем и выходим
+                sys.exit(0)
+
+            from localization import TRANSLATIONS
+            title = TRANSLATIONS.get(sys_lang, TRANSLATIONS['en']).get('multi_instance_title', "Another Instance")
+            msg = TRANSLATIONS.get(sys_lang, TRANSLATIONS['en']).get('multi_instance_question', "Another instance is running. Start another one?")
+            
+            # Принудительно выводим диалог на передний план (создаем невидимое окно-пустышку)
+            dummy = QWidget()
+            dummy.setWindowFlags(Qt.WindowStaysOnTopHint | Qt.FramelessWindowHint)
+            dummy.setAttribute(Qt.WA_TranslucentBackground)
+            dummy.show()
+            
+            # Используем кастомный MessageBox для локализации кнопок
+            msg_box = QMessageBox(dummy)
+            msg_box.setWindowTitle(title)
+            msg_box.setText(msg)
+            msg_box.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+            
+            # Локализация кнопок
+            yes_txt = TRANSLATIONS.get(sys_lang, TRANSLATIONS['en']).get('yes_btn', "Yes")
+            no_txt = TRANSLATIONS.get(sys_lang, TRANSLATIONS['en']).get('no_btn', "No")
+            msg_box.button(QMessageBox.Yes).setText(yes_txt)
+            msg_box.button(QMessageBox.No).setText(no_txt)
+            
+            msg_box.setDefaultButton(QMessageBox.No)
+            msg_box.setWindowFlags(msg_box.windowFlags() | Qt.WindowStaysOnTopHint)
+            
+            reply = msg_box.exec_()
+            dummy.close()
+            
+            if reply == QMessageBox.No:
+                sys.exit(0)
+            # Если "Yes", продолжаем запуск (но НЕ стартуем сервер, чтобы не конфликтовать)
+            start_server = False
+    else:
+        # Если есть флаг --new-instance, удаляем его из argv, чтобы он не мешал парсингу файлов
+        if force_new:
+            sys.argv.remove("--new-instance")
+        start_server = True
+        # Если мы здесь и это первый запуск — регистрируем ассоциации
+        from windows_registry import register_file_associations
+        register_file_associations()
+
+    window = TranslationApp()
+    
+    if start_server:
+        # Создаем и запускаем локальный сервер для прослушивания новых вызовов
+        server = QLocalServer()
+        # Очищаем битые сокеты на случай некорректного закрытия программы в прошлом
+        QLocalServer.removeServer(server_name)
+        server.listen(server_name)
+        
+        # Привязываем сервер к экземпляру окна
+        window.local_server = server
+        server.newConnection.connect(window.handle_new_instance_connection)
+
+    window.show()
+    sys.exit(app.exec_())
