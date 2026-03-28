@@ -2,7 +2,7 @@
 
 **A tool for text translation of missions and campaigns in DCS World**
 
-![DCS Translation Tool Interface](https://github.com/Hokum-A/dcs-translation-tool/blob/main/assets/TOOL1.1eng.jpg)
+![DCS Translation Tool Interface](https://github.com/Hokum-A/dcs-translation-tool/blob/main/assets/TOOL_1.2en.jpg)
 *Main interface of the translation tool*
 
 Supports `.lua` (dictionary), `.cmp` (campaign) files and mission `.miz` archives. The interface is fully translated into English and Russian.
@@ -32,7 +32,7 @@ Supports `.lua` (dictionary), `.cmp` (campaign) files and mission `.miz` archive
 ## 🚀 Installation and Launch
 
 1. Go to **[Releases](https://github.com/Hokum-A/dcs-translation-tool/releases)**
-2. Download the latest version of `DCS_Translation_Tool_vX.X.exe`
+2. Download the latest version of `DCS_Translation_TOOL_vX.X.exe`
 3. Run the downloaded file
 
 ---
@@ -81,7 +81,7 @@ The project is distributed under the **MIT License**. For more details, see the 
 
 **Инструмент для текстового перевода миссий и кампаний игры DCS World**
 
-![Интерфейс DCS Translation Tool](https://github.com/Hokum-A/dcs-translation-tool/blob/main/assets/TOOL1.1.jpg)
+![Интерфейс DCS Translation Tool](https://github.com/Hokum-A/dcs-translation-tool/blob/main/assets/TOOL_1.2ru.jpg)
 *Главное окно программы для перевода*
 
 Поддерживает работу с файлами `.lua` (dictionary), `.cmp` (файлы кампаний) и архивами миссий `.miz`. Интерфейс полностью переведён на русский и английский языки.
@@ -105,7 +105,7 @@ The project is distributed under the **MIT License**. For more details, see the 
 ## 🚀 Установка и запуск
 
 1. Перейдите в раздел **[Releases](https://github.com/Hokum-A/dcs-translation-tool/releases)**
-2. Скачайте последнюю версию `DCS_Translation_Tool_vX.X.exe`
+2. Скачайте последнюю версию `DCS_Translation_TOOL_vX.X.exe`
 3. Запустите скачанный файл
 
 ---
