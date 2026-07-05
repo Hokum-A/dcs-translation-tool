@@ -833,6 +833,7 @@ class TTSEngine:
         import sys
         import threading
         self._xtts_lock = threading.Lock()
+        self.cancel_download = False
         
         if base_dir is None:
             # Если запущено из .exe, папка tts_data должна лежать рядом с .exe, а не во временной папке %TEMP%
@@ -1708,9 +1709,11 @@ class TTSEngine:
             logger.error(f"Failed to download voice {voice_id}: {e}")
             return False
 
-    def _download_file(self, url, dest, label, external_callback=None, text_callback=None):
+    def _download_file(self, url, dest, label, external_callback=None, text_callback=None, ip_callback=None):
         """Надежный метод загрузки файла с поддержкой заголовков и SSL."""
         import ssl
+        import socket
+        from urllib.parse import urlparse
         try:
             ctx = ssl.create_default_context()
             ctx.check_hostname = False
@@ -1720,16 +1723,56 @@ class TTSEngine:
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
             }
 
-            req = urllib.request.Request(url, headers=headers)
+            # ── Определяем размер файла (HEAD запрос) ──
+            req_head = urllib.request.Request(url, headers=headers, method='HEAD')
+            total_size = 0
+            accept_ranges = ''
+            try:
+                head_req = urllib.request.Request(url, method='HEAD', headers=headers)
+                with urllib.request.urlopen(head_req, context=ctx, timeout=30) as head_resp:
+                    total_size = int(head_resp.getheader('Content-Length', 0))
+                    accept_ranges = head_resp.getheader('Accept-Ranges', '') or ''
+                    
+                    # Извлекаем финальный IP (после всех редиректов на CDN)
+                    try:
+                        final_host = urlparse(head_resp.url).hostname
+                        if final_host:
+                            _, _, ip_list = socket.gethostbyname_ex(final_host)
+                            if ip_list:
+                                # Показываем до 3-4 IP, чтобы не раздувать интерфейс
+                                ip_str = f"Host: {final_host} | IP: " + ", ".join(ip_list[:3])
+                                if len(ip_list) > 3:
+                                    ip_str += f" (+{len(ip_list)-3})"
+                                if ip_callback:
+                                    ip_callback(ip_str)
+                                logger.info(f"{label}: Resolved CDN IPs {ip_list} for {final_host}")
+                    except Exception as e:
+                        logger.warning(f"Could not resolve CDN IP for {head_resp.url}: {e}")
+                        
+            except Exception as e:
+                logger.warning(f"{label}: HEAD запрос не удался ({e}), fallback на обычную загрузку")
 
+            # Для файлов >10 МБ с поддержкой Range — многопоточная загрузка (8 потоков)
+            MIN_SIZE_FOR_THREADS = 10 * 1024 * 1024
+            NUM_THREADS = 8
+            if total_size > MIN_SIZE_FOR_THREADS and 'bytes' in accept_ranges.lower():
+                logger.info(f"{label}: многопоточная загрузка ({NUM_THREADS} потоков, {total_size} байт)")
+                return self._download_file_threaded(
+                    url, dest, label, NUM_THREADS, total_size, ctx, headers,
+                    external_callback, text_callback
+                )
+
+            # ── Однопоточная загрузка (маленькие файлы / нет поддержки Range) ──
+            req = urllib.request.Request(url, headers=headers)
             with urllib.request.urlopen(req, context=ctx, timeout=60) as response:
-                total_size = int(response.getheader('Content-Length', 0))
-                block_size = 8192
+                if total_size == 0:
+                    total_size = int(response.getheader('Content-Length', 0))
+                block_size = 1024 * 1024
                 read_so_far = 0
                 last_percent = -1
 
                 with open(dest, 'wb') as f:
-                    while True:
+                    while not self.cancel_download:
                         buffer = response.read(block_size)
                         if not buffer:
                             break
@@ -1737,16 +1780,18 @@ class TTSEngine:
                         read_so_far += len(buffer)
 
                         if external_callback and total_size > 0:
-                            percent = int(read_so_far * 100 / total_size)
-                            
-                            # Отправляем сигналы только если изменился процент (предотвращает спам из 200 000+ сигналов)
-                            if percent != last_percent:
-                                # Текстовый апдейт (чтобы не перегружать текстовое поле)
+                            percent_1000 = int(read_so_far * 1000 / total_size)
+                            if percent_1000 != last_percent:
                                 if text_callback and (read_so_far % (1024 * 1024 * 5) < block_size):
                                     text_callback(get_translation(self.current_language, 'tts_status_dl_progress', label=label, current=read_so_far // 1024 // 1024, total=total_size // 1024 // 1024))
-                                
-                                external_callback(percent, 1, 100)
-                                last_percent = percent
+                                external_callback(percent_1000 // 10, 1, 100)
+                                last_percent = percent_1000
+
+            if getattr(self, 'cancel_download', False):
+                logger.info(f"{label}: скачивание отменено пользователем")
+                if os.path.exists(dest):
+                    os.remove(dest)
+                return False
 
             logger.info(f"{label}: загружено {read_so_far} байт")
             return True
@@ -1757,7 +1802,122 @@ class TTSEngine:
                 os.remove(dest)
             return False
 
-    def download_xtts_model(self, progress_callback=None, text_callback=None):
+    def _download_file_threaded(self, url, dest, label, num_threads, total_size,
+                                 ctx, headers, external_callback=None, text_callback=None, ip_callback=None):
+        """Многопоточная загрузка файла через HTTP Range запросы.
+        Разбивает файл на num_threads частей и качает их параллельно,
+        что обходит ограничение CDN на скорость одного соединения."""
+        import threading
+        import time
+
+        chunk_size = total_size // num_threads
+        progress_lock = threading.Lock()
+        shared = {'downloaded': 0, 'last_percent': -1}
+        errors = []
+        temp_files = [str(dest) + f".part{i}" for i in range(num_threads)]
+
+        def download_chunk(idx, byte_start, byte_end, temp_path):
+            """Загружает один кусок файла (Range: bytes=start-end)."""
+            try:
+                chunk_headers = dict(headers)
+                chunk_headers['Range'] = f'bytes={byte_start}-{byte_end}'
+                req = urllib.request.Request(url, headers=chunk_headers)
+                with urllib.request.urlopen(req, context=ctx, timeout=120) as resp:
+                    with open(temp_path, 'wb') as f:
+                        while not self.cancel_download:
+                            buf = resp.read(1024 * 1024)
+                            if not buf:
+                                break
+                            f.write(buf)
+                            with progress_lock:
+                                shared['downloaded'] += len(buf)
+            except Exception as e:
+                errors.append((idx, str(e)))
+
+        # Запускаем потоки загрузки
+        threads = []
+        for i in range(num_threads):
+            byte_start = i * chunk_size
+            byte_end = (i + 1) * chunk_size - 1 if i < num_threads - 1 else total_size - 1
+            t = threading.Thread(
+                target=download_chunk,
+                args=(i, byte_start, byte_end, temp_files[i]),
+                daemon=True
+            )
+            t.start()
+            threads.append(t)
+
+        # Мониторинг прогресса (выполняется в потоке QThread-воркера)
+        while any(t.is_alive() for t in threads):
+            if self.cancel_download:
+                break
+            with progress_lock:
+                downloaded = shared['downloaded']
+
+            if total_size > 0:
+                percent_1000 = int(downloaded * 1000 / total_size)
+                if percent_1000 != shared['last_percent']:
+                    shared['last_percent'] = percent_1000
+                    if external_callback:
+                        external_callback(percent_1000 // 10, 1, 100)
+                    if text_callback:
+                        text_callback(get_translation(
+                            self.current_language, 'tts_status_dl_progress',
+                            label=label,
+                            current=downloaded // 1024 // 1024,
+                            total=total_size // 1024 // 1024
+                        ))
+            time.sleep(0.05)
+
+        # Ждём завершения всех потоков
+        for t in threads:
+            t.join(timeout=5)
+
+        # ── Проверка ошибок и отмены ──
+        if errors or self.cancel_download:
+            for e_idx, e_msg in errors:
+                logger.error(f"{label} chunk {e_idx} failed: {e_msg}")
+            # Удаляем все временные файлы
+            for tf in temp_files:
+                if os.path.exists(tf):
+                    try: os.remove(tf)
+                    except OSError: pass
+            if os.path.exists(dest):
+                try: os.remove(dest)
+                except OSError: pass
+            if self.cancel_download:
+                logger.info(f"{label}: скачивание отменено пользователем")
+            return False
+
+        # ── Объединяем части в один файл ──
+        try:
+            if text_callback:
+                text_callback(get_translation(
+                    self.current_language, 'tts_status_dl_progress',
+                    label=label,
+                    current=total_size // 1024 // 1024,
+                    total=total_size // 1024 // 1024
+                ))
+            with open(dest, 'wb') as out_f:
+                for tf in temp_files:
+                    with open(tf, 'rb') as part_f:
+                        shutil.copyfileobj(part_f, out_f, 1024 * 1024)
+                    os.remove(tf)
+
+            logger.info(f"{label}: загружено {total_size} байт ({num_threads}-поточная загрузка)")
+            return True
+        except Exception as e:
+            logger.error(f"{label}: ошибка при объединении частей: {e}")
+            for tf in temp_files:
+                if os.path.exists(tf):
+                    try: os.remove(tf)
+                    except OSError: pass
+            if os.path.exists(dest):
+                try: os.remove(dest)
+                except OSError: pass
+            return False
+
+    def download_xtts_model(self, progress_callback=None, text_callback=None, ip_callback=None):
         """Скачивает модель XTTS v2 (~1.5GB) с HuggingFace."""
         try:
             # Файлы модели XTTS v2
@@ -1771,7 +1931,7 @@ class TTSEngine:
 
                 # Общий прогресс будет сложнее, так как файлы разного размера.
                 # model.pth самый тяжелый.
-                if not self._download_file(base_url + f_name, dest, f"XTTS {f_name}", progress_callback, text_callback):
+                if not self._download_file(base_url + f_name, dest, f"XTTS {f_name}", progress_callback, text_callback, ip_callback):
                     # Если один файл не скачался, прерываем
                     if text_callback: text_callback(get_translation(self.current_language, 'tts_err_generic', error=f_name))
                     return False

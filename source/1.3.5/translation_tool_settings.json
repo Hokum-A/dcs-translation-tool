@@ -15,7 +15,7 @@
   "debug_logs_enabled": false,
   "create_backup": true,
   "show_all_keys": false,
-  "last_open_folder": "F:/GAMES/DCS World/Mods/campaigns/FA-18C & F-14 Iron Tide",
+  "last_open_folder": "F:\\GAMES\\DCS World\\Mods\\campaigns\\FA-18C The Rampagers",
   "last_save_folder": "C:/Users/Andrei/Saved Games/DCS.openbeta/Missions",
   "last_audio_folder": "C:/Users/Andrei/Desktop/test/test2",
   "window_width": 1895,
@@ -33,8 +33,8 @@
     866
   ],
   "main_vertical_splitter_sizes": [
-    1036,
-    0
+    511,
+    525
   ],
   "audio_player_geom": null,
   "audio_player_playlist_visible": false,
@@ -87,15 +87,15 @@
   "image_viewer_maximized": false,
   "image_viewer_geom": null,
   "recent_files": [
+    "F:\\GAMES\\DCS World\\Mods\\campaigns\\FA-18C The Rampagers\\RAM M02.miz",
     "F:\\GAMES\\DCS World\\Mods\\campaigns\\FA-18C & F-14 Iron Tide\\Dynamic mission 0800.miz",
     "F:\\GAMES\\DCS World\\Mods\\campaigns\\FA-18C & F-14 Iron Tide\\Intro.miz",
     "F:\\GAMES\\DCS World\\Mods\\campaigns\\FA-18C & F-14 Iron Tide\\Dynamic mission 1900.miz",
-    "F:\\GAMES\\DCS World\\Mods\\campaigns\\FA-18C & F-14 Iron Tide\\Dynamic mission 0200.miz",
-    "F:\\GAMES\\DCS World\\Mods\\campaigns\\FA-18C The Rampagers\\RAM M02.miz"
+    "F:\\GAMES\\DCS World\\Mods\\campaigns\\FA-18C & F-14 Iron Tide\\Dynamic mission 0200.miz"
   ],
   "tts_auto_play": false,
   "smart_paste_enabled": true,
-  "preview_enabled": false,
+  "preview_enabled": true,
   "last_preview_sizes": [
     511,
     525

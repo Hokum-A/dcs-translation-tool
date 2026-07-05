@@ -5499,6 +5499,7 @@ class XTTSDownloadWorker(QThread):
     """Поток для скачивания модели XTTS v2 (~1.5GB)."""
     progress = pyqtSignal(int, int, int)
     progress_text = pyqtSignal(str)
+    ip_ready = pyqtSignal(str)
     finished = pyqtSignal(bool)
     
     def __init__(self, engine):
@@ -5507,7 +5508,7 @@ class XTTSDownloadWorker(QThread):
 
     def run(self):
         try:
-            success = self.engine.download_xtts_model(self.progress.emit, self.progress_text.emit)
+            success = self.engine.download_xtts_model(self.progress.emit, self.progress_text.emit, self.ip_ready.emit)
             self.finished.emit(success)
         except Exception:
             self.finished.emit(False)
@@ -6092,6 +6093,13 @@ class TTSPreviewDialog(CustomDialog):
         self.lbl_status.setAlignment(Qt.AlignCenter)
         self.lbl_status.setStyleSheet("color: #ffffff; font-size: 12px; background: transparent;")
         left_layout.addWidget(self.lbl_status)
+        
+        self.lbl_server_ip = QLabel("")
+        self.lbl_server_ip.setAlignment(Qt.AlignCenter)
+        self.lbl_server_ip.setStyleSheet("color: #888888; font-size: 11px; background: transparent;")
+        self.lbl_server_ip.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.lbl_server_ip.hide()
+        left_layout.addWidget(self.lbl_server_ip)
         
         left_layout.addStretch()
 
@@ -7950,6 +7958,8 @@ class TTSPreviewDialog(CustomDialog):
         self.time_label.setText(f"{fmt(current_ms)} / {fmt(dur_ms)}")
 
     def _start_piper_download(self, voice_id):
+        if hasattr(self, 'engine'):
+            self.engine.cancel_download = False
         self.btn_main_action.setEnabled(False); self.download_progress.show()
         self.download_worker = VoiceDownloadWorker(self.engine, voice_id)
         self.download_worker.progress.connect(self.download_progress.setValue)
@@ -7957,14 +7967,24 @@ class TTSPreviewDialog(CustomDialog):
         self.download_worker.start()
 
     def _start_xtts_download(self):
+        if hasattr(self, 'engine'):
+            self.engine.cancel_download = False
         self.btn_install_xtts_model.setEnabled(False); self.download_progress.show()
+        self.lbl_server_ip.setText(""); self.lbl_server_ip.hide()
         self.xtts_worker = XTTSDownloadWorker(self.engine)
         self.xtts_worker.progress.connect(self.download_progress.setValue)
         self.xtts_worker.progress_text.connect(self.lbl_status.setText)
+        self.xtts_worker.ip_ready.connect(self._on_server_ip_ready)
         self.xtts_worker.finished.connect(self._on_download_finished)
         self.xtts_worker.start()
 
+    def _on_server_ip_ready(self, info_text):
+        self.lbl_server_ip.setText(info_text)
+        self.lbl_server_ip.show()
+
     def _start_piper_engine_install(self):
+        if hasattr(self, 'engine'):
+            self.engine.cancel_download = False
         self.btn_install_piper.setEnabled(False); self.download_progress.show()
         from localization import get_translation
         self.lbl_status.setText(get_translation(self.current_language, 'tts_status_dl_piper'))
@@ -8157,8 +8177,10 @@ class TTSPreviewDialog(CustomDialog):
             self.settings.setValue("tts_splitter_state", self.tts_splitter.saveState())
         self._stop_playback_safely()
         # Останавливаем фоновый сервер XTTS для освобождения VRAM
-        if hasattr(self, 'engine') and hasattr(self.engine, 'shutdown_xtts_server'):
-            self.engine.shutdown_xtts_server()
+        if hasattr(self, 'engine'):
+            self.engine.cancel_download = True
+            if hasattr(self.engine, 'shutdown_xtts_server'):
+                self.engine.shutdown_xtts_server()
         super().done(r)
 
     def closeEvent(self, event):
@@ -8172,8 +8194,10 @@ class TTSPreviewDialog(CustomDialog):
             self.settings.setValue("tts_splitter_state", self.tts_splitter.saveState())
         self._stop_playback_safely()
         # Останавливаем фоновый сервер XTTS для освобождения VRAM
-        if hasattr(self, 'engine') and hasattr(self.engine, 'shutdown_xtts_server'):
-            self.engine.shutdown_xtts_server()
+        if hasattr(self, 'engine'):
+            self.engine.cancel_download = True
+            if hasattr(self.engine, 'shutdown_xtts_server'):
+                self.engine.shutdown_xtts_server()
         super().closeEvent(event)
     def _stop_playback_safely(self):
         try:

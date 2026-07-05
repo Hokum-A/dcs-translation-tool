@@ -54,7 +54,7 @@ exe = EXE(
     a.zipfiles,
     a.datas,
     [],
-    name='DCS_Translation_TOOL',
+    name='DCS-Translation-Tool-v1.x-win-x64',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
