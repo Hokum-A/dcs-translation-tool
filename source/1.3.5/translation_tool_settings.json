@@ -1,0 +1,117 @@
+{
+  "version": "1.3.5",
+  "language": "ru",
+  "filter_action_text": true,
+  "filter_action_radio": true,
+  "filter_description": true,
+  "filter_subtitle": true,
+  "filter_sortie": true,
+  "filter_name": true,
+  "filter_empty": true,
+  "filter_empty_keys": true,
+  "filter_audio_keys": false,
+  "highlight_empty_fields": true,
+  "highlight_empty_color": "#434343",
+  "debug_logs_enabled": false,
+  "create_backup": true,
+  "show_all_keys": false,
+  "last_open_folder": "F:/GAMES/DCS World/Mods/campaigns/FA-18C & F-14 Iron Tide",
+  "last_save_folder": "C:/Users/Andrei/Saved Games/DCS.openbeta/Missions",
+  "last_audio_folder": "C:/Users/Andrei/Desktop/test/test2",
+  "window_width": 1895,
+  "window_height": 1285,
+  "add_context": true,
+  "optimize_text": true,
+  "lua_optimize_text": true,
+  "lua_add_context": true,
+  "ai_context_1": "Ты переводчик миссий DCS World (авиасимулятор).\n\nЗадача:\nПереведи текст на РУССКИЙ ЯЗЫК максимально точно, без художественных вольностей.\n\nОБЯЗАТЕЛЬНО:\n- Сохраняй количество строк 1 в 1 даже если это не имеет смысла, даже если кажется, что это одно предложение, не объединяй строки\n- НИЧЕГО не добавляй и не удаляй\n- НЕ объединяй строки\n- НЕ переводить технические элементы, имена файлов, ключи, идентификаторы, переменные\n- НЕ переводить теги-имена говорящих в начале строки (Player:, Wingman:, ATC:, Mother:, Shadow:, Servan: и т.д.) — переводится только текст ПОСЛЕ тега, сам тег остаётся как есть\n- НЕ переводить позывные звеньев/самолётов/станций, если они выглядят как callsign (Brutus, Colt 1-1, Ford 2, Ram 2-1, Shadow, Magic, Servan, Mother, Firefly, Strike, Image)\n- НЕ переводить значения времени, координаты, высоты, частоты\n\nПОЗЫВНЫЕ ВНУТРИ ЗВЕНА (ведущий/ведомый):\n- \"One\", \"Two\", \"Three\", \"Four\" как обращение к роли пилота в звене (а не как часть составного позывного типа \"Ram 2-1\" или \"2-2\") — переводить как \"Первый\", \"Второй\", \"Третий\", \"Четвёртый\"\n- Составные числовые позывные типа \"2-2\", \"3-1\" (часть имени звена/самолёта, например \"Ram 2-1\", \"Ram 2-2\") — НЕ переводить, оставлять как есть\n- \"Lead\" — переводить как \"Ведущий\"\nПример: \"Two, push button 7\" → \"Второй, переключись на канал 7\"\nПример: \"Player: One copies\" → \"Player: Первый принял\"\n\nПЕРЕВОДИТЬ ПО СМЫСЛУ (а не транслитерировать):\n- Радиообмен\n- Инструкции игроку\n- Сообщения от инструктора\n- Брифинги и подсказки\n- Стандартные авиационные proword'ы и коды радиообмена (например: Winchester, Bingo, Tally, Fence in, Fence out, Feet wet, Feet dry, Buster, Angels, Splash и т.п.) — переводить их смысл на русский военный/авиационный лексикон, а не оставлять английское слово как есть\n- \"Sweet/sweet\" (proword об отсутствии угроз/чистом радиоэфире) — переводить как \"Чисто/чисто\"\n- \"Timber Sweet\" (proword о исправности лазерного оборудования для подсветки цели) — переводить как \"Лазер исправен\"\n- \"Break\" (proword паузы в длинном радиосообщении) — переводить транслитерацией как \"Брейк\"\n- \"State\" в значении остатка топлива (\"say state\", \"update state\") — переводить как \"остаток\" (например: \"Say state\" → \"Сообщи остаток\")\n\nРАЗЛИЧИЕ МЕЖДУ \"CHECK IN\"/\"CHECK OUT\":\n- В контексте коридоров (\"Check in corridor\", \"Check out corridor\") — переводить как \"Вход в коридор\" / \"Выход из коридора\"\n- В общем контексте выхода на связь/окончания связи (\"checking in\", \"checking out\", \"check-in\") — переводить как \"выход на связь\" / \"окончание связи\" (или по смыслу фразы: \"на связи\" / \"покидает связь\")\n\nФорматирование и количество строк должно остаться исходным.\n\nКонтекст:\nТекст используется в миссии DCS World.\nТематика — авиация и военные полёты.\n\nВот текст для перевода:",
+  "ai_context_2": "Ты переводчик миссий DCS World (авиасимулятор).\n\nЗадача:\nПереведи текст на РУССКИЙ ЯЗЫК максимально точно, без художественных вольностей.\n\nОБЯЗАТЕЛЬНО:\n- Сохраняй количество строк 1 в 1 даже если это не имеет смысла, даже если кажется, что это одно предложение, не объединяй строки\n- НИЧЕГО не добавляй и не удаляй\n- НЕ объединяй строки\n- НЕ переводить технические элементы, имена файлов, ключи, идентификаторы, переменные\n- НЕ переводить позывные, если они выглядят как callsign (Brutus, Colt 1-1, Ford 2)\n- НЕ переводить значения времени, координаты, высоты, частоты\n- Форматирование и количество строк должно остаться исходным\n\nПЕРЕВОДИТЬ:\n- Радиообмен\n- Инструкции игроку\n- Сообщения от инструктора\n- Брифинги и подсказки\n\nКонтекст:\nТекст используется в миссии DCS World.\nТематика — авиация и военные полёты.\n\nВот текст для перевода:",
+  "ai_context_lang_1": "RU",
+  "sync_scroll": true,
+  "pane_splitter_sizes": [
+    1011,
+    866
+  ],
+  "main_vertical_splitter_sizes": [
+    1036,
+    0
+  ],
+  "audio_player_geom": null,
+  "audio_player_playlist_visible": false,
+  "audio_player_expanded_height": 510,
+  "files_window_geom": [
+    1083,
+    246,
+    1400,
+    1065
+  ],
+  "briefing_window_geom": [
+    1190,
+    173,
+    750,
+    850
+  ],
+  "settings_window_geom": [
+    1840,
+    265,
+    600,
+    892
+  ],
+  "lua_window_geom": [
+    1205,
+    359,
+    1100,
+    700
+  ],
+  "audio_volume": 50,
+  "theme_bg_even": "#393939",
+  "theme_bg_odd": "#2f2f2f",
+  "theme_text_modified": "#ff6666",
+  "theme_text_saved": "#2ecc71",
+  "theme_text_session": "#bbf324",
+  "bookmark_bg_star": "#423400",
+  "bookmark_bg_question": "#0d4200",
+  "bookmark_bg_alert": "#420000",
+  "bookmark_bg_opacity": 0.6,
+  "reference_locale": "DEFAULT",
+  "skip_locale_dialog": false,
+  "default_open_locale": "DEFAULT",
+  "multi_window_enabled": false,
+  "preview_font_family": "Arial",
+  "preview_font_size": 11,
+  "search_scope_original": true,
+  "search_scope_reference": true,
+  "search_scope_editor": true,
+  "search_scope_audio": true,
+  "search_case_sensitive": false,
+  "image_viewer_maximized": false,
+  "image_viewer_geom": null,
+  "recent_files": [
+    "F:\\GAMES\\DCS World\\Mods\\campaigns\\FA-18C & F-14 Iron Tide\\Dynamic mission 0800.miz",
+    "F:\\GAMES\\DCS World\\Mods\\campaigns\\FA-18C & F-14 Iron Tide\\Intro.miz",
+    "F:\\GAMES\\DCS World\\Mods\\campaigns\\FA-18C & F-14 Iron Tide\\Dynamic mission 1900.miz",
+    "F:\\GAMES\\DCS World\\Mods\\campaigns\\FA-18C & F-14 Iron Tide\\Dynamic mission 0200.miz",
+    "F:\\GAMES\\DCS World\\Mods\\campaigns\\FA-18C The Rampagers\\RAM M02.miz"
+  ],
+  "tts_auto_play": false,
+  "smart_paste_enabled": true,
+  "preview_enabled": false,
+  "last_preview_sizes": [
+    511,
+    525
+  ],
+  "custom_filters": [
+    {
+      "enabled": false,
+      "text": ""
+    },
+    {
+      "enabled": false,
+      "text": ""
+    },
+    {
+      "enabled": false,
+      "text": ""
+    }
+  ]
+}
