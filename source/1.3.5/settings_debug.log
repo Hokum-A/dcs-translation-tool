@@ -1,0 +1,156 @@
+[2026-06-22T16:50:22.598502] cancel_and_restore START: snapshot={'highlight_empty_fields': True, 'highlight_empty_color': '#434343', 'debug_logs_enabled': True, 'theme_bg_even': '#393939', 'theme_bg_odd': '#2f2f2f', 'theme_text_modified': '#ff6666', 'theme_text_saved': '#2ecc71', 'theme_text_session': '#bbf324', 'reference_locale': 'DEFAULT', 'skip_locale_dialog': False, 'default_open_locale': 'DEFAULT', 'preview_font_family': 'Arial', 'preview_font_size': 11, 'multi_window_enabled': False, 'search_scope_original': True, 'search_scope_reference': True, 'search_scope_editor': True, 'search_scope_audio': True, 'smart_paste_enabled': True, 'preview_enabled': True}, parent=True
+  File "c:\Users\Andrei\Desktop\DCS translation TOOL\main.py", line 14021, in <module>
+    sys.exit(app.exec_())
+  File "c:\Users\Andrei\Desktop\DCS translation TOOL\dialogs.py", line 4484, in cancel_and_restore
+    self._log_debug(f"cancel_and_restore START: snapshot={getattr(self, '_orig_parent_values', None)}, parent={self.parent_window is not None}")
+  File "c:\Users\Andrei\Desktop\DCS translation TOOL\dialogs.py", line 4584, in _log_debug
+    for line in traceback.format_stack()[-8:]:
+
+[2026-06-22T16:50:22.599503] cancel_and_restore: RESTORING from snapshot: {'highlight_empty_fields': True, 'highlight_empty_color': '#434343', 'debug_logs_enabled': True, 'theme_bg_even': '#393939', 'theme_bg_odd': '#2f2f2f', 'theme_text_modified': '#ff6666', 'theme_text_saved': '#2ecc71', 'theme_text_session': '#bbf324', 'reference_locale': 'DEFAULT', 'skip_locale_dialog': False, 'default_open_locale': 'DEFAULT', 'preview_font_family': 'Arial', 'preview_font_size': 11, 'multi_window_enabled': False, 'search_scope_original': True, 'search_scope_reference': True, 'search_scope_editor': True, 'search_scope_audio': True, 'smart_paste_enabled': True, 'preview_enabled': True}
+  File "c:\Users\Andrei\Desktop\DCS translation TOOL\main.py", line 14021, in <module>
+    sys.exit(app.exec_())
+  File "c:\Users\Andrei\Desktop\DCS translation TOOL\dialogs.py", line 4493, in cancel_and_restore
+    self._log_debug(f"cancel_and_restore: RESTORING from snapshot: {vals}")
+  File "c:\Users\Andrei\Desktop\DCS translation TOOL\dialogs.py", line 4584, in _log_debug
+    for line in traceback.format_stack()[-8:]:
+
+[2026-06-22T16:50:22.599503]   - highlight_empty_fields: True -> True
+  File "c:\Users\Andrei\Desktop\DCS translation TOOL\main.py", line 14021, in <module>
+    sys.exit(app.exec_())
+  File "c:\Users\Andrei\Desktop\DCS translation TOOL\dialogs.py", line 4497, in cancel_and_restore
+    self._log_debug(f"  - highlight_empty_fields: {old_val} -> {vals.get('highlight_empty_fields', True)}")
+  File "c:\Users\Andrei\Desktop\DCS translation TOOL\dialogs.py", line 4584, in _log_debug
+    for line in traceback.format_stack()[-8:]:
+
+[2026-06-22T16:50:22.600002]   - highlight_empty_color: #434343 -> #434343
+  File "c:\Users\Andrei\Desktop\DCS translation TOOL\main.py", line 14021, in <module>
+    sys.exit(app.exec_())
+  File "c:\Users\Andrei\Desktop\DCS translation TOOL\dialogs.py", line 4503, in cancel_and_restore
+    self._log_debug(f"  - highlight_empty_color: {old_col} -> {vals.get('highlight_empty_color', '#555555')}")
+  File "c:\Users\Andrei\Desktop\DCS translation TOOL\dialogs.py", line 4584, in _log_debug
+    for line in traceback.format_stack()[-8:]:
+
+[2026-06-22T16:50:22.600002]   - debug_logs_enabled: True -> True
+  File "c:\Users\Andrei\Desktop\DCS translation TOOL\main.py", line 14021, in <module>
+    sys.exit(app.exec_())
+  File "c:\Users\Andrei\Desktop\DCS translation TOOL\dialogs.py", line 4509, in cancel_and_restore
+    self._log_debug(f"  - debug_logs_enabled: {old_logs} -> {vals.get('debug_logs_enabled', True)}")
+  File "c:\Users\Andrei\Desktop\DCS translation TOOL\dialogs.py", line 4584, in _log_debug
+    for line in traceback.format_stack()[-8:]:
+
+[2026-06-22T16:50:22.600002]   - theme colors restored
+  File "c:\Users\Andrei\Desktop\DCS translation TOOL\main.py", line 14021, in <module>
+    sys.exit(app.exec_())
+  File "c:\Users\Andrei\Desktop\DCS translation TOOL\dialogs.py", line 4519, in cancel_and_restore
+    self._log_debug(f"  - theme colors restored")
+  File "c:\Users\Andrei\Desktop\DCS translation TOOL\dialogs.py", line 4584, in _log_debug
+    for line in traceback.format_stack()[-8:]:
+
+[2026-06-22T16:50:22.658357]   - reference_locale and font restored
+  File "c:\Users\Andrei\Desktop\DCS translation TOOL\main.py", line 14021, in <module>
+    sys.exit(app.exec_())
+  File "c:\Users\Andrei\Desktop\DCS translation TOOL\dialogs.py", line 4533, in cancel_and_restore
+    self._log_debug(f"  - reference_locale and font restored")
+  File "c:\Users\Andrei\Desktop\DCS translation TOOL\dialogs.py", line 4584, in _log_debug
+    for line in traceback.format_stack()[-8:]:
+
+--- save_settings called at 2026-06-22T16:50:28.240954 force=False suppress=False
+  File "c:\Users\Andrei\Desktop\DCS translation TOOL\main.py", line 14021, in <module>
+    sys.exit(app.exec_())
+  File "c:\Users\Andrei\Desktop\DCS translation TOOL\main.py", line 2691, in eventFilter
+    self.close()
+  File "c:\Users\Andrei\Desktop\DCS translation TOOL\main.py", line 13888, in closeEvent
+    self.save_settings()
+  File "c:\Users\Andrei\Desktop\DCS translation TOOL\main.py", line 4334, in save_settings
+    for line in traceback.format_stack():
+
+--- save_settings called at 2026-06-22T16:51:43.347427 force=False suppress=False
+  File "c:\Users\Andrei\Desktop\DCS translation TOOL\main.py", line 14021, in <module>
+    sys.exit(app.exec_())
+  File "c:\Users\Andrei\Desktop\DCS translation TOOL\main.py", line 5346, in open_any_file
+    self.save_settings(update_ui=False, update_preview=False)
+  File "c:\Users\Andrei\Desktop\DCS translation TOOL\main.py", line 4334, in save_settings
+    for line in traceback.format_stack():
+
+--- save_settings called at 2026-06-22T16:51:43.350912 force=False suppress=False
+  File "c:\Users\Andrei\Desktop\DCS translation TOOL\main.py", line 14021, in <module>
+    sys.exit(app.exec_())
+  File "c:\Users\Andrei\Desktop\DCS translation TOOL\main.py", line 5351, in open_any_file
+    self.open_miz_file(preselected_path=file_path)
+  File "c:\Users\Andrei\Desktop\DCS translation TOOL\main.py", line 6404, in open_miz_file
+    self.save_settings()
+  File "c:\Users\Andrei\Desktop\DCS translation TOOL\main.py", line 4334, in save_settings
+    for line in traceback.format_stack():
+
+[2026-06-22T16:52:04.990126] SettingsWindow.__init__: Creating dialog
+  File "c:\Users\Andrei\Desktop\DCS translation TOOL\main.py", line 14021, in <module>
+    sys.exit(app.exec_())
+  File "c:\Users\Andrei\Desktop\DCS translation TOOL\widgets.py", line 994, in mouseReleaseEvent
+    self.clicked.emit()
+  File "c:\Users\Andrei\Desktop\DCS translation TOOL\main.py", line 1759, in open_settings_window
+    self.settings_window = SettingsWindow(self.current_language, self)
+  File "c:\Users\Andrei\Desktop\DCS translation TOOL\dialogs.py", line 4110, in __init__
+    self._log_debug(f"SettingsWindow.__init__: Creating dialog")
+  File "c:\Users\Andrei\Desktop\DCS translation TOOL\dialogs.py", line 4584, in _log_debug
+    for line in traceback.format_stack()[-8:]:
+
+[2026-06-22T16:52:04.992631] highlight_toggle toggled -> True
+  File "c:\Users\Andrei\Desktop\DCS translation TOOL\main.py", line 14021, in <module>
+    sys.exit(app.exec_())
+  File "c:\Users\Andrei\Desktop\DCS translation TOOL\widgets.py", line 994, in mouseReleaseEvent
+    self.clicked.emit()
+  File "c:\Users\Andrei\Desktop\DCS translation TOOL\main.py", line 1759, in open_settings_window
+    self.settings_window = SettingsWindow(self.current_language, self)
+  File "c:\Users\Andrei\Desktop\DCS translation TOOL\dialogs.py", line 4111, in __init__
+    self.load_values_from_parent()
+  File "c:\Users\Andrei\Desktop\DCS translation TOOL\dialogs.py", line 4121, in load_values_from_parent
+    self.highlight_toggle.setChecked(val)
+  File "c:\Users\Andrei\Desktop\DCS translation TOOL\widgets.py", line 494, in setChecked
+    self.toggled.emit(self._checked)
+  File "c:\Users\Andrei\Desktop\DCS translation TOOL\dialogs.py", line 4592, in _on_highlight_toggled
+    self._log_debug(f'highlight_toggle toggled -> {value}')
+  File "c:\Users\Andrei\Desktop\DCS translation TOOL\dialogs.py", line 4584, in _log_debug
+    for line in traceback.format_stack()[-8:]:
+
+[2026-06-22T16:52:04.993635] load_values_from_parent: LOADED: highlight=True, col=#434343, logs=True || SNAPSHOT: {'highlight_empty_fields': True, 'highlight_empty_color': '#434343', 'debug_logs_enabled': True, 'theme_bg_even': '#393939', 'theme_bg_odd': '#2f2f2f', 'theme_text_modified': '#ff6666', 'theme_text_saved': '#2ecc71', 'theme_text_session': '#bbf324', 'reference_locale': 'DEFAULT', 'skip_locale_dialog': False, 'default_open_locale': 'DEFAULT', 'preview_font_family': 'Arial', 'preview_font_size': 11, 'multi_window_enabled': False, 'search_scope_original': True, 'search_scope_reference': True, 'search_scope_editor': True, 'search_scope_audio': True, 'smart_paste_enabled': True, 'preview_enabled': True}
+  File "c:\Users\Andrei\Desktop\DCS translation TOOL\main.py", line 14021, in <module>
+    sys.exit(app.exec_())
+  File "c:\Users\Andrei\Desktop\DCS translation TOOL\widgets.py", line 994, in mouseReleaseEvent
+    self.clicked.emit()
+  File "c:\Users\Andrei\Desktop\DCS translation TOOL\main.py", line 1759, in open_settings_window
+    self.settings_window = SettingsWindow(self.current_language, self)
+  File "c:\Users\Andrei\Desktop\DCS translation TOOL\dialogs.py", line 4111, in __init__
+    self.load_values_from_parent()
+  File "c:\Users\Andrei\Desktop\DCS translation TOOL\dialogs.py", line 4227, in load_values_from_parent
+    self._log_debug(f"load_values_from_parent: LOADED: highlight={v_h}, col={v_c}, logs={v_l} || SNAPSHOT: {self._orig_parent_values}")
+  File "c:\Users\Andrei\Desktop\DCS translation TOOL\dialogs.py", line 4584, in _log_debug
+    for line in traceback.format_stack()[-8:]:
+
+[2026-06-22T16:52:04.993635] SettingsWindow.__init__: Initial values loaded
+  File "c:\Users\Andrei\Desktop\DCS translation TOOL\main.py", line 14021, in <module>
+    sys.exit(app.exec_())
+  File "c:\Users\Andrei\Desktop\DCS translation TOOL\widgets.py", line 994, in mouseReleaseEvent
+    self.clicked.emit()
+  File "c:\Users\Andrei\Desktop\DCS translation TOOL\main.py", line 1759, in open_settings_window
+    self.settings_window = SettingsWindow(self.current_language, self)
+  File "c:\Users\Andrei\Desktop\DCS translation TOOL\dialogs.py", line 4112, in __init__
+    self._log_debug(f"SettingsWindow.__init__: Initial values loaded")
+  File "c:\Users\Andrei\Desktop\DCS translation TOOL\dialogs.py", line 4584, in _log_debug
+    for line in traceback.format_stack()[-8:]:
+
+[2026-06-22T16:52:06.956554] reset_to_defaults: applied defaults in dialog
+  File "c:\Users\Andrei\Desktop\DCS translation TOOL\main.py", line 14021, in <module>
+    sys.exit(app.exec_())
+  File "c:\Users\Andrei\Desktop\DCS translation TOOL\dialogs.py", line 4293, in reset_to_defaults
+    self._log_debug('reset_to_defaults: applied defaults in dialog')
+  File "c:\Users\Andrei\Desktop\DCS translation TOOL\dialogs.py", line 4584, in _log_debug
+    for line in traceback.format_stack()[-8:]:
+
+[2026-06-22T16:52:08.337408] reset_to_defaults: applied defaults in dialog
+  File "c:\Users\Andrei\Desktop\DCS translation TOOL\main.py", line 14021, in <module>
+    sys.exit(app.exec_())
+  File "c:\Users\Andrei\Desktop\DCS translation TOOL\dialogs.py", line 4293, in reset_to_defaults
+    self._log_debug('reset_to_defaults: applied defaults in dialog')
+  File "c:\Users\Andrei\Desktop\DCS translation TOOL\dialogs.py", line 4584, in _log_debug
+    for line in traceback.format_stack()[-8:]:
+
